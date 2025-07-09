@@ -23,9 +23,7 @@ export function TopBarWalletButton({
       style={{ alignSelf: "center" }}
       onPress={selectedAccount ? openMenu : connect}
     >
-      {selectedAccount
-        ? ellipsify(selectedAccount.publicKey.toBase58())
-        : "Connect"}
+      {selectedAccount ? ellipsify(selectedAccount.publicKey.toBase58()) : "Connect"}
     </Button>
   );
 }
@@ -60,9 +58,7 @@ export function TopBarWalletMenu() {
 
   const viewExplorer = () => {
     if (selectedAccount) {
-      const explorerUrl = getExplorerUrl(
-        `account/${selectedAccount.publicKey.toBase58()}`
-      );
+      const explorerUrl = getExplorerUrl(`account/${selectedAccount.publicKey.toBase58()}`);
       Linking.openURL(explorerUrl);
     }
     closeMenu();
@@ -72,23 +68,10 @@ export function TopBarWalletMenu() {
     <Menu
       visible={visible}
       onDismiss={closeMenu}
-      anchor={
-        <TopBarWalletButton
-          selectedAccount={selectedAccount}
-          openMenu={openMenu}
-        />
-      }
+      anchor={<TopBarWalletButton selectedAccount={selectedAccount} openMenu={openMenu} />}
     >
-      <Menu.Item
-        onPress={copyAddressToClipboard}
-        title="Copy address"
-        leadingIcon="content-copy"
-      />
-      <Menu.Item
-        onPress={viewExplorer}
-        title="View Explorer"
-        leadingIcon="open-in-new"
-      />
+      <Menu.Item onPress={copyAddressToClipboard} title="Copy address" leadingIcon="content-copy" />
+      <Menu.Item onPress={viewExplorer} title="View Explorer" leadingIcon="open-in-new" />
       <Menu.Item
         onPress={async () => {
           await disconnect();

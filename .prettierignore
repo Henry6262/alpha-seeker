@@ -1,0 +1,27 @@
+# Build directories
+android/
+ios/
+.expo/
+dist/
+web-build/
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.log
+*.lock
+package-lock.json
+yarn.lock
+
+# OS files
+.DS_Store
+*.pem
+
+# Editor files
+.vscode/
+.idea/
+
+# Screenshots and assets
+screenshots/
+assets/ 

@@ -1,11 +1,5 @@
 import { Connection, type ConnectionConfig } from "@solana/web3.js";
-import React, {
-  type FC,
-  type ReactNode,
-  useMemo,
-  createContext,
-  useContext,
-} from "react";
+import React, { type FC, type ReactNode, useMemo, createContext, useContext } from "react";
 import { useCluster } from "../components/cluster/cluster-data-access";
 
 export interface ConnectionProviderProps {
@@ -24,11 +18,7 @@ export const ConnectionProvider: FC<ConnectionProviderProps> = ({
     [selectedCluster, config]
   );
 
-  return (
-    <ConnectionContext.Provider value={{ connection }}>
-      {children}
-    </ConnectionContext.Provider>
-  );
+  return <ConnectionContext.Provider value={{ connection }}>{children}</ConnectionContext.Provider>;
 };
 
 export interface ConnectionContextState {

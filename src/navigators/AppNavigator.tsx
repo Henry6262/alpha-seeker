@@ -13,11 +13,7 @@ import { Appearance, useColorScheme } from "react-native";
 import * as Screens from "../screens";
 import { HomeNavigator } from "./HomeNavigator";
 import { StatusBar } from "expo-status-bar";
-import {
-  MD3DarkTheme,
-  MD3LightTheme,
-  adaptNavigationTheme,
-} from "react-native-paper";
+import { MD3DarkTheme, MD3LightTheme, adaptNavigationTheme } from "react-native-paper";
 
 /**
  * This type allows TypeScript to know what routes are defined in this navigator
@@ -50,11 +46,7 @@ const Stack = createNativeStackNavigator();
 const AppStack = () => {
   return (
     <Stack.Navigator initialRouteName={"Home"}>
-      <Stack.Screen
-        name="HomeStack"
-        component={HomeNavigator}
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="HomeStack" component={HomeNavigator} options={{ headerShown: false }} />
       <Stack.Screen name="Settings" component={Screens.SettingsScreen} />
       {/** 🔥 Your screens go here */}
     </Stack.Navigator>

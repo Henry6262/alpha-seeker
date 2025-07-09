@@ -17,10 +17,7 @@ export function ConnectButton() {
       setAuthorizationInProgress(true);
       await connect();
     } catch (err: any) {
-      alertAndLog(
-        "Error during connect",
-        err instanceof Error ? err.message : err
-      );
+      alertAndLog("Error during connect", err instanceof Error ? err.message : err);
     } finally {
       setAuthorizationInProgress(false);
     }
@@ -53,10 +50,7 @@ export function SignInButton() {
         uri: "https://yourdomain.com",
       });
     } catch (err: any) {
-      alertAndLog(
-        "Error during sign in",
-        err instanceof Error ? err.message : err
-      );
+      alertAndLog("Error during sign in", err instanceof Error ? err.message : err);
     } finally {
       setSignInInProgress(false);
     }

@@ -2,11 +2,7 @@ import { View, StyleSheet } from "react-native";
 import { List, RadioButton, Text } from "react-native-paper";
 import { Cluster } from "./cluster-data-access";
 
-export function ClusterPickerRadioButtonGroupRow({
-  cluster,
-}: {
-  cluster: Cluster;
-}) {
+export function ClusterPickerRadioButtonGroupRow({ cluster }: { cluster: Cluster }) {
   return (
     <List.Item
       title={cluster.name}

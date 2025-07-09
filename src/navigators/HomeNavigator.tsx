@@ -33,9 +33,7 @@ export function HomeNavigator() {
             case "Blank":
               return (
                 <MaterialCommunityIcon
-                  name={
-                    focused ? "application-edit" : "application-edit-outline"
-                  }
+                  name={focused ? "application-edit" : "application-edit-outline"}
                   size={size}
                   color={color}
                 />
