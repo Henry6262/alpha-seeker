@@ -29,9 +29,7 @@ export function AccountBalance({ address }: { address: PublicKey }) {
     <>
       <View style={styles.accountBalance}>
         <Text variant="titleMedium">Current Balance</Text>
-        <Text variant="displayLarge">
-          {query.data ? lamportsToSol(query.data) : "..."} SOL
-        </Text>
+        <Text variant="displayLarge">{query.data ? lamportsToSol(query.data) : "..."} SOL</Text>
       </View>
     </>
   );
@@ -70,11 +68,7 @@ export function AccountButtonGroup({ address }: { address: PublicKey }) {
         >
           Airdrop
         </Button>
-        <Button
-          mode="contained"
-          onPress={() => setShowSendModal(true)}
-          style={{ marginLeft: 6 }}
-        >
+        <Button mode="contained" onPress={() => setShowSendModal(true)} style={{ marginLeft: 6 }}>
           Send
         </Button>
         <Button
@@ -106,15 +100,13 @@ export function AirdropRequestModal({
       hide={hide}
       show={show}
       submit={() => {
-        requestAirdrop.mutateAsync(1).catch((err) => console.log(err));
+        requestAirdrop.mutateAsync(1).catch(err => console.log(err));
       }}
       submitLabel="Request"
       submitDisabled={requestAirdrop.isPending}
     >
       <View style={{ padding: 4 }}>
-        <Text>
-          Request an airdrop of 1 SOL to your connected wallet account.
-        </Text>
+        <Text>Request an airdrop of 1 SOL to your connected wallet account.</Text>
       </View>
     </AppModal>
   );
@@ -190,7 +182,7 @@ export function ReceiveSolModal({
 }
 
 export function AccountTokens({ address }: { address: PublicKey }) {
-  let query = useGetTokenAccounts({ address });
+  const query = useGetTokenAccounts({ address });
   const [currentPage, setCurrentPage] = useState(0);
   const itemsPerPage = 3; // Items per page
   const theme = useTheme();
@@ -246,12 +238,8 @@ export function AccountTokens({ address }: { address: PublicKey }) {
 
               {items?.map(({ account, pubkey }) => (
                 <DataTable.Row key={pubkey.toString()}>
-                  <DataTable.Cell>
-                    {ellipsify(pubkey.toString())}
-                  </DataTable.Cell>
-                  <DataTable.Cell>
-                    {ellipsify(account.data.parsed.info.mint)}
-                  </DataTable.Cell>
+                  <DataTable.Cell>{ellipsify(pubkey.toString())}</DataTable.Cell>
+                  <DataTable.Cell>{ellipsify(account.data.parsed.info.mint)}</DataTable.Cell>
                   <DataTable.Cell numeric>
                     <AccountTokenBalance address={pubkey} />
                   </DataTable.Cell>
@@ -262,7 +250,7 @@ export function AccountTokens({ address }: { address: PublicKey }) {
                 <DataTable.Pagination
                   page={currentPage}
                   numberOfPages={numberOfPages}
-                  onPageChange={(page) => setCurrentPage(page)}
+                  onPageChange={page => setCurrentPage(page)}
                   label={`${currentPage + 1} of ${numberOfPages}`}
                   numberOfItemsPerPage={itemsPerPage}
                   selectPageDropdownLabel={"Rows per page"}

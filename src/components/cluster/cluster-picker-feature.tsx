@@ -21,7 +21,7 @@ export default function ClusterPickerFeature() {
     <>
       <Text variant="headlineMedium">Cluster:</Text>
       <RadioButton.Group
-        onValueChange={(newClusternetwork) =>
+        onValueChange={newClusternetwork =>
           setSelectedCluster(clusters[clusternetworkToIndex(newClusternetwork)])
         }
         value={selectedCluster.network}

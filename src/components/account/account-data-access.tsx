@@ -36,10 +36,7 @@ export function useGetTokenAccounts({ address }: { address: PublicKey }) {
   const { connection } = useConnection();
 
   return useQuery({
-    queryKey: [
-      "get-token-accounts",
-      { endpoint: connection.rpcEndpoint, address },
-    ],
+    queryKey: ["get-token-accounts", { endpoint: connection.rpcEndpoint, address }],
     queryFn: async () => {
       const [tokenAccounts, token2022Accounts] = await Promise.all([
         connection.getParsedTokenAccountsByOwner(address, {
@@ -72,10 +69,7 @@ export function useTransferSol({ address }: { address: PublicKey }) {
   const wallet = useMobileWallet();
 
   return useMutation({
-    mutationKey: [
-      "transfer-sol",
-      { endpoint: connection.rpcEndpoint, address },
-    ],
+    mutationKey: ["transfer-sol", { endpoint: connection.rpcEndpoint, address }],
     mutationFn: async (input: { destination: PublicKey; amount: number }) => {
       let signature: TransactionSignature = "";
       try {
@@ -90,10 +84,7 @@ export function useTransferSol({ address }: { address: PublicKey }) {
         signature = await wallet.signAndSendTransaction(transaction, minContextSlot);
 
         // Send transaction and await for signature
-        await connection.confirmTransaction(
-          { signature, ...latestBlockhash },
-          "confirmed"
-        );
+        await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
 
         console.log(signature);
         return signature;
@@ -103,26 +94,20 @@ export function useTransferSol({ address }: { address: PublicKey }) {
         return;
       }
     },
-    onSuccess: (signature) => {
+    onSuccess: signature => {
       if (signature) {
         console.log(signature);
       }
       return Promise.all([
         client.invalidateQueries({
-          queryKey: [
-            "get-balance",
-            { endpoint: connection.rpcEndpoint, address },
-          ],
+          queryKey: ["get-balance", { endpoint: connection.rpcEndpoint, address }],
         }),
         client.invalidateQueries({
-          queryKey: [
-            "get-signatures",
-            { endpoint: connection.rpcEndpoint, address },
-          ],
+          queryKey: ["get-signatures", { endpoint: connection.rpcEndpoint, address }],
         }),
       ]);
     },
-    onError: (error) => {
+    onError: error => {
       console.error(`Transaction failed! ${error}`);
     },
   });
@@ -140,26 +125,17 @@ export function useRequestAirdrop({ address }: { address: PublicKey }) {
         connection.requestAirdrop(address, amount * LAMPORTS_PER_SOL),
       ]);
 
-      await connection.confirmTransaction(
-        { signature, ...latestBlockhash },
-        "confirmed"
-      );
+      await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
       return signature;
     },
-    onSuccess: (signature) => {
+    onSuccess: signature => {
       console.log(signature);
       return Promise.all([
         client.invalidateQueries({
-          queryKey: [
-            "get-balance",
-            { endpoint: connection.rpcEndpoint, address },
-          ],
+          queryKey: ["get-balance", { endpoint: connection.rpcEndpoint, address }],
         }),
         client.invalidateQueries({
-          queryKey: [
-            "get-signatures",
-            { endpoint: connection.rpcEndpoint, address },
-          ],
+          queryKey: ["get-signatures", { endpoint: connection.rpcEndpoint, address }],
         }),
       ]);
     },
@@ -179,14 +155,13 @@ async function createTransaction({
 }): Promise<{
   transaction: VersionedTransaction;
   latestBlockhash: { blockhash: string; lastValidBlockHeight: number };
-  minContextSlot: number
+  minContextSlot: number;
 }> {
   // Get the latest blockhash and slot to use in our transaction
   const {
-    context: {slot: minContextSlot},
-    value: latestBlockhash
+    context: { slot: minContextSlot },
+    value: latestBlockhash,
   } = await connection.getLatestBlockhashAndContext();
-
 
   // Create instructions to send, in this case a simple transfer
   const instructions = [

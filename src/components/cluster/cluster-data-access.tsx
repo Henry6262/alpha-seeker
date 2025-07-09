@@ -15,9 +15,7 @@ export enum ClusterNetwork {
   Devnet = "devnet",
   Custom = "custom",
 }
-export function toWalletAdapterNetwork(
-  cluster?: ClusterNetwork
-): WalletAdapterNetwork | undefined {
+export function toWalletAdapterNetwork(cluster?: ClusterNetwork): WalletAdapterNetwork | undefined {
   switch (cluster) {
     case ClusterNetwork.Mainnet:
       return WalletAdapterNetwork.Mainnet;
@@ -50,14 +48,10 @@ export interface ClusterProviderContext {
   getExplorerUrl(path: string): string;
 }
 
-const Context = createContext<ClusterProviderContext>(
-  {} as ClusterProviderContext
-);
+const Context = createContext<ClusterProviderContext>({} as ClusterProviderContext);
 
 export function ClusterProvider({ children }: { children: ReactNode }) {
-  const [selectedCluster, setSelectedCluster] = useState<Cluster>(
-    defaultClusters[0]
-  );
+  const [selectedCluster, setSelectedCluster] = useState<Cluster>(defaultClusters[0]);
   const clusters = [...defaultClusters];
 
   const value: ClusterProviderContext = useMemo(
@@ -66,9 +60,7 @@ export function ClusterProvider({ children }: { children: ReactNode }) {
       clusters: clusters.sort((a, b) => (a.name > b.name ? 1 : -1)),
       setSelectedCluster: (cluster: Cluster) => setSelectedCluster(cluster),
       getExplorerUrl: (path: string) =>
-        `https://explorer.solana.com/${path}${getClusterUrlParam(
-          selectedCluster
-        )}`,
+        `https://explorer.solana.com/${path}${getClusterUrlParam(selectedCluster)}`,
     }),
     [selectedCluster, setSelectedCluster]
   );

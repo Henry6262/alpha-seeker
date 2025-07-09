@@ -12,10 +12,7 @@ export function HomeScreen() {
 
   return (
     <View style={styles.screenContainer}>
-      <Text
-        style={{ fontWeight: "bold", marginBottom: 12 }}
-        variant="displaySmall"
-      >
+      <Text style={{ fontWeight: "bold", marginBottom: 12 }} variant="displaySmall">
         Solana Mobile Expo Template
       </Text>
       {selectedAccount ? (

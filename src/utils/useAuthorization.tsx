@@ -78,9 +78,7 @@ function cacheReviver(key: string, value: any) {
 const AUTHORIZATION_STORAGE_KEY = "authorization-cache";
 
 async function fetchAuthorization(): Promise<WalletAuthorization | null> {
-  const cacheFetchResult = await AsyncStorage.getItem(
-    AUTHORIZATION_STORAGE_KEY
-  );
+  const cacheFetchResult = await AsyncStorage.getItem(AUTHORIZATION_STORAGE_KEY);
 
   if (!cacheFetchResult) {
     return null;
@@ -90,9 +88,7 @@ async function fetchAuthorization(): Promise<WalletAuthorization | null> {
   return JSON.parse(cacheFetchResult, cacheReviver);
 }
 
-async function persistAuthorization(
-  auth: WalletAuthorization | null
-): Promise<void> {
+async function persistAuthorization(auth: WalletAuthorization | null): Promise<void> {
   await AsyncStorage.setItem(AUTHORIZATION_STORAGE_KEY, JSON.stringify(auth));
 }
 
@@ -115,9 +111,7 @@ export function useAuthorization() {
   });
 
   const handleAuthorizationResult = useCallback(
-    async (
-      authorizationResult: AuthorizationResult
-    ): Promise<WalletAuthorization> => {
+    async (authorizationResult: AuthorizationResult): Promise<WalletAuthorization> => {
       const nextAuthorization = getAuthorizationFromAuthorizationResult(
         authorizationResult,
         authorization?.selectedAccount
@@ -134,8 +128,7 @@ export function useAuthorization() {
         chain: CHAIN_IDENTIFIER,
         auth_token: authorization?.authToken,
       });
-      return (await handleAuthorizationResult(authorizationResult))
-        .selectedAccount;
+      return (await handleAuthorizationResult(authorizationResult)).selectedAccount;
     },
     [authorization, handleAuthorizationResult]
   );
@@ -147,8 +140,7 @@ export function useAuthorization() {
         auth_token: authorization?.authToken,
         sign_in_payload: signInPayload,
       });
-      return (await handleAuthorizationResult(authorizationResult))
-        .selectedAccount;
+      return (await handleAuthorizationResult(authorizationResult)).selectedAccount;
     },
     [authorization, handleAuthorizationResult]
   );
