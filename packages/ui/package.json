@@ -1,0 +1,29 @@
+{
+  "name": "@alpha-seeker/ui",
+  "version": "1.0.0",
+  "description": "Shared Tamagui UI components for Alpha Seeker",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@tamagui/core": "^1.87.0",
+    "@tamagui/config": "^1.87.0",
+    "@tamagui/animations-react-native": "^1.87.0",
+    "react": "^18.2.0",
+    "react-native": "^0.72.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-native": "^0.72.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-native": "^0.72.0"
+  }
+} 

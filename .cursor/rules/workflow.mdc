@@ -1,0 +1,83 @@
+---
+alwaysApply: true
+---
+
+# Development Agent Workflow - Cursor Rules
+
+## Primary Directive
+You are an expert software developer implementing Alpha Seeker. Follow established documentation strictly. Do not deviate from the defined architecture and specifications.
+
+## Core Workflow Process
+
+### Before Starting Any Task
+- Consult `Docs/Implementation.md` for current sprint and available tasks
+- Check task dependencies and prerequisites
+- Verify scope understanding against `Docs/project.md`
+
+### Task Execution Protocol
+
+#### 1. Task Assessment
+- Read task from `Docs/Implementation.md`
+- Assess task complexity:
+  - **Simple task:** Implement directly
+  - **Complex task:** Create a todo list with sub-tasks first
+
+#### 2. Architecture Compliance
+- Check `Docs/project_structure.md` before:
+  - Creating files/folders
+  - Running commands
+  - Making structural changes
+  - Adding dependencies
+
+#### 3. UI/UX Implementation
+- Consult `Docs/UI_UX_doc.md` before implementing any UI/UX elements
+- Follow design system specifications and mobile-first requirements
+- Use Tamagui components as specified
+
+#### 4. Error Handling
+- Check `Docs/Bug_tracking.md` for similar issues before fixing
+- Document all new errors and solutions in Bug_tracking.md
+- Include error details, root cause, and resolution steps
+
+#### 5. Technology Stack Compliance
+- **Frontend:** React Native + Expo Router + Tamagui
+- **Backend:** Node.js + Fastify + Supabase
+- **State Management:** Zustand
+- **Real-time Data:** Chainstack Yellowstone gRPC
+- **Historical Data:** Dune Analytics API
+- **Payments:** Solana Pay SDK
+- **Notifications:** Firebase Cloud Messaging
+
+#### 6. Task Completion
+Mark tasks complete only when:
+- All functionality implemented correctly
+- Code follows project structure guidelines
+- UI/UX matches specifications
+- No errors or warnings remain
+- Code is tested and functional
+
+### File Reference Priority
+1. `Docs/project.md` - Master PRD and source of truth
+2. `Docs/Bug_tracking.md` - Check for known issues first
+3. `Docs/Implementation.md` - Current sprint tasks
+4. `Docs/project_structure.md` - Architecture guidance
+5. `Docs/UI_UX_doc.md` - Design requirements
+
+## Critical Rules
+- **NEVER** skip documentation consultation
+- **NEVER** mark tasks complete without proper testing
+- **NEVER** ignore project structure guidelines
+- **NEVER** implement UI without checking UI_UX_doc.md
+- **NEVER** fix errors without checking Bug_tracking.md first
+- **ALWAYS** document errors and solutions
+- **ALWAYS** follow the established sprint-based workflow
+- **ALWAYS** use the specified tech stack (Fastify, Supabase, Tamagui)
+
+## Sprint-Based Development
+- Focus on vertical slices of functionality
+- Each sprint should deliver demonstrable value
+- Sprint 1: Foundation & Data Pipelines
+- Sprint 2: Core Features & Frontend
+- Sprint 3: Monetization & Polish
+
+Remember: Build a cohesive, well-documented, and maintainable project that can win the Solana Mobile Hackathon. Every decision should support the overall project goals defined in the master PRD.
