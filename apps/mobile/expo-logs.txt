@@ -1,0 +1,62 @@
+Starting project at /Users/henry/Downloads/solana-react-native-starter/solana-mobile-expo-template-main/apps/mobile
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+› Opening emulator Medium_Phone_API_36.0
+› Opening exp+solana-mobile-expo-template://expo-development-client/?url=http%3A%2F%2F192.168.100.36%3A8081 on Medium_Phone_API_36.0
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android Bundled 7199ms apps/mobile/index.js (1346 modules)
+ INFO  
+[7m [1m💡 JavaScript logs will be removed from Metro in React Native 0.77![22m Please use React Native DevTools as your default tool. Tip: Type [1mj[22m in the terminal to open (requires Google Chrome or Microsoft Edge).[27m
+ ERROR  Warning: TypeError: 0, _core.useNavigationIndependentTree is not a function (it is undefined)
+
+This error is located at:
+    in NavigationContainerInner (created by AppNavigator)
+    in AppNavigator (created by App)
+    in ThemeProvider (created by PaperProvider)
+    in RCTView (created by View)
+    in View (created by Portal.Host)
+    in Portal.Host (created by PaperProvider)
+    in RNCSafeAreaProvider (created by SafeAreaProvider)
+    in SafeAreaProvider (created by SafeAreaInsetsContext)
+    in SafeAreaProviderCompat (created by PaperProvider)
+    in PaperProvider (created by App)
+    in RNCSafeAreaView
+    in Unknown (created by App)
+    in ConnectionProvider (created by App)
+    in ClusterProvider (created by App)
+    in QueryClientProvider (created by App)
+    in App (created by withDevTools(App))
+    in withDevTools(App)
+    in RCTView (created by View)
+    in View (created by AppContainer)
+    in RCTView (created by View)
+    in View (created by AppContainer)
+    in AppContainer
+    in main(RootComponent), js engine: hermes
+ ERROR  Warning: TypeError: 0, _core.useNavigationIndependentTree is not a function (it is undefined)
+
+This error is located at:
+    in NavigationContainerInner (created by AppNavigator)
+    in AppNavigator (created by App)
+    in ThemeProvider (created by PaperProvider)
+    in RCTView (created by View)
+    in View (created by Portal.Host)
+    in Portal.Host (created by PaperProvider)
+    in RNCSafeAreaProvider (created by SafeAreaProvider)
+    in SafeAreaProvider (created by SafeAreaInsetsContext)
+    in SafeAreaProviderCompat (created by PaperProvider)
+    in PaperProvider (created by App)
+    in RNCSafeAreaView
+    in Unknown (created by App)
+    in ConnectionProvider (created by App)
+    in ClusterProvider (created by App)
+    in QueryClientProvider (created by App)
+    in App (created by withDevTools(App))
+    in withDevTools(App)
+    in RCTView (created by View)
+    in View (created by AppContainer)
+    in RCTView (created by View)
+    in View (created by AppContainer)
+    in AppContainer
+    in main(RootComponent), js engine: hermes

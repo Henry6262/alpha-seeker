@@ -1,4 +1,5 @@
-import ClusterPickerFeature from "../components/cluster/cluster-picker-feature";
+import React from "react";
+import { ClusterPickerFeature } from "../components/cluster/cluster-picker-feature";
 import { StyleSheet, View } from "react-native";
 
 export function SettingsScreen() {
