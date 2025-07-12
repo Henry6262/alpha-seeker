@@ -14,13 +14,13 @@ await fastify.register(import('@fastify/cors'), {
 // Register WebSocket support
 await fastify.register(import('@fastify/websocket'))
 
-// Health check endpoint
+// Root health check endpoint
 fastify.get('/health', async (request: FastifyRequest, reply: FastifyReply) => {
   return { status: 'ok', service: 'alpha-seeker-api', timestamp: new Date().toISOString() }
 })
 
-// Register API v1 routes
-await fastify.register(v1Routes)
+// Register API v1 routes with proper prefix
+await fastify.register(v1Routes, { prefix: '/api/v1' })
 
 // Start server
 const start = async () => {
@@ -33,6 +33,11 @@ const start = async () => {
     
     await fastify.listen({ port, host })
     console.log(`🚀 Alpha Seeker API running on http://${host}:${port}`)
+    console.log(`📊 API endpoints available at:`)
+    console.log(`   - Health: http://${host}:${port}/health`)
+    console.log(`   - Bootstrap: http://${host}:${port}/api/v1/bootstrap/phase1`)
+    console.log(`   - Leaderboard: http://${host}:${port}/api/v1/leaderboard`)
+    console.log(`   - Status: http://${host}:${port}/api/v1/bootstrap/status`)
   } catch (err) {
     fastify.log.error(err)
     process.exit(1)
