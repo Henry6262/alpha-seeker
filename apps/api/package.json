@@ -16,8 +16,11 @@
     "@fastify/env": "^4.2.0",
     "@fastify/jwt": "^7.2.4",
     "@fastify/websocket": "^8.3.1",
+    "@grpc/grpc-js": "^1.13.4",
+    "@grpc/proto-loader": "^0.7.15",
     "@prisma/client": "^6.11.1",
     "@solana/web3.js": "^1.87.6",
+    "@triton-one/yellowstone-grpc": "^4.0.2",
     "fastify": "^4.24.3",
     "node-cron": "^3.0.3",
     "ws": "^8.14.2"

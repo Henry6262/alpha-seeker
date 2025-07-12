@@ -1,6 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { leaderboardRoutes } from './leaderboard'
 import { DuneService } from '../../services/dune.service'
+import { GeyserService } from '../../services/geyser.service'
+
+// Global Geyser service instance
+let geyserService: GeyserService | null = null
 
 export async function v1Routes(fastify: FastifyInstance) {
   // Register leaderboard routes
@@ -13,6 +17,148 @@ export async function v1Routes(fastify: FastifyInstance) {
       service: 'alpha-seeker-api',
       timestamp: new Date().toISOString(),
       version: '1.0.0'
+    }
+  })
+
+  // Geyser service endpoints for Phase 2
+  fastify.post('/geyser/start', async (request, reply) => {
+    try {
+      const endpoint = process.env.CHAINSTACK_GEYSER_ENDPOINT
+      const token = process.env.CHAINSTACK_API_KEY
+
+      if (!endpoint) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Chainstack Geyser endpoint not configured',
+          message: 'Please set CHAINSTACK_GEYSER_ENDPOINT environment variable'
+        })
+      }
+
+      if (geyserService && geyserService.getStatus().connected) {
+        return reply.status(409).send({
+          success: false,
+          error: 'Geyser service already running',
+          status: geyserService.getStatus()
+        })
+      }
+
+      console.log('🚀 Starting Geyser service for Phase 2 real-time streaming...')
+      
+      geyserService = new GeyserService({ endpoint, token })
+      await geyserService.connect()
+
+      // Start subscribing to DEX transactions
+      const dexPrograms = [
+        'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4', // Jupiter
+        '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8', // Raydium V4
+        'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc', // Orca Whirlpools
+        'DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1', // Orca V1
+        '9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP', // Orca V2
+      ]
+
+      // Start transaction subscription in background
+      geyserService.subscribeToTransactions(dexPrograms).catch(error => {
+        console.error('❌ Transaction subscription failed:', error)
+      })
+
+      return {
+        success: true,
+        message: 'Geyser service started successfully',
+        timestamp: new Date().toISOString(),
+        status: geyserService.getStatus(),
+        subscribedPrograms: dexPrograms.length
+      }
+    } catch (error) {
+      console.error('❌ Failed to start Geyser service:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to start Geyser service',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+
+  fastify.post('/geyser/stop', async (request, reply) => {
+    try {
+      if (!geyserService) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Geyser service not running'
+        })
+      }
+
+      console.log('🛑 Stopping Geyser service...')
+      await geyserService.disconnect()
+      geyserService = null
+
+      return {
+        success: true,
+        message: 'Geyser service stopped successfully',
+        timestamp: new Date().toISOString()
+      }
+    } catch (error) {
+      console.error('❌ Failed to stop Geyser service:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to stop Geyser service',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+
+  fastify.get('/geyser/status', async (request, reply) => {
+    return {
+      success: true,
+      timestamp: new Date().toISOString(),
+      data: {
+        running: geyserService !== null,
+        status: geyserService?.getStatus() || { connected: false, reconnectAttempts: 0 },
+        phase: geyserService ? 'Phase 2 - Real-time Streaming' : 'Phase 1 - Dune Analytics',
+        description: geyserService 
+          ? 'Streaming real-time transactions from Chainstack Geyser'
+          : 'Using historical data from Dune Analytics'
+      }
+    }
+  })
+
+  fastify.post('/geyser/subscribe-wallets', async (request, reply) => {
+    try {
+      const { wallets } = request.body as { wallets: string[] }
+
+      if (!geyserService || !geyserService.getStatus().connected) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Geyser service not connected'
+        })
+      }
+
+      if (!wallets || !Array.isArray(wallets)) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Invalid wallets array provided'
+        })
+      }
+
+      console.log(`👥 Subscribing to ${wallets.length} wallets for real-time tracking...`)
+      
+      // Start wallet subscription in background
+      geyserService.subscribeToWallets(wallets).catch(error => {
+        console.error('❌ Wallet subscription failed:', error)
+      })
+
+      return {
+        success: true,
+        message: `Subscribed to ${wallets.length} wallets`,
+        timestamp: new Date().toISOString(),
+        wallets: wallets.length
+      }
+    } catch (error) {
+      console.error('❌ Failed to subscribe to wallets:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to subscribe to wallets',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
     }
   })
 
