@@ -109,38 +109,6 @@ Project Structure and Environment
 - Follow patterns for environment-specific configurations in `eas.json` and `next.config.js`.
 - Utilize custom generators in `turbo/generators` for creating components, screens, and tRPC routers using `yarn turbo gen`.
 
-## MANDATORY DEVELOPMENT WORKFLOW STANDARDS
-
-### Proactive Error Handling
-- **NEVER** stop execution when encountering errors - immediately investigate and fix them
-- **ALWAYS** continue the development process without waiting for user intervention
-- **AUTOMATICALLY** diagnose issues using available tools and implement solutions
-- **IMMEDIATELY** apply fixes when errors occur during development or testing
-
-### Automated Development Process
-- **AUTOMATICALLY** launch development servers with appropriate flags (e.g., `--android` for mobile)
-- **AUTOMATICALLY** restart servers when configuration changes are detected
-- **AUTOMATICALLY** clear caches when bundling issues occur
-- **NEVER** require manual user input for standard development operations
-
-### Mandatory Testing Protocol
-- **ALWAYS** test applications immediately after implementing changes
-- **REQUIRED** API testing: Verify endpoints return expected data
-- **REQUIRED** Mobile testing: Launch app on emulator/device and verify it loads
-- **REQUIRED** Integration testing: Test component interactions and navigation
-- **NEVER** mark tasks complete without functional testing
-
-### Immediate Change Management
-- **IMMEDIATELY** push all changes to remote repository after task completion
-- **AUTOMATICALLY** commit changes with structured commit messages
-- **REQUIRED** git push after every completed task or fix
-- **NEVER** leave changes uncommitted or unpushed
-
-### Continuous Improvement
-- **AUTOMATICALLY** document any new issues encountered in Bug_tracking.md
-- **PROACTIVELY** suggest and implement performance optimizations
-- **CONTINUOUSLY** monitor for linting errors and fix them immediately
-
 Key Conventions
 
 - Use descriptive and meaningful commit messages.
@@ -153,9 +121,57 @@ Follow Official Documentation
 - For Next.js, focus on data fetching methods and routing conventions.
 - Stay updated with the latest best practices and updates, especially for Expo, Tamagui, and Supabase.
 
+## **MANDATORY WORKFLOW STANDARDS - ALWAYS FOLLOW**
+
+### **Proactive Error Handling & Automation**
+- **NEVER** wait for user input when errors occur - immediately investigate and fix
+- **ALWAYS** continue execution after identifying issues until fully resolved
+- **MANDATORY** capture all terminal output and error logs for analysis
+- **REQUIRED** use background processes appropriately and monitor for completion
+- **ESSENTIAL** push changes to remote repository immediately after task completion
+- **CRITICAL** test applications on actual devices/emulators before marking tasks complete
+
+### **Database Schema Compliance - MANDATORY**
+- **ALWAYS** consult `Docs/Database_Schema.md` before any database-related work
+- **NEVER** modify Prisma schema without updating schema documentation
+- **MANDATORY** update schema version and changelog for any database changes
+- **VERIFY** all API endpoints align with documented database schema
+- **ENSURE** all database constraints and relationships are properly tested
+- **REQUIRED** validate Twitter integration follows documented field constraints
+
+### **Documentation-First Development**
+- **BEFORE ANY TASK:** Consult documentation in this order:
+  1. `Docs/project.md` - Master PRD and requirements
+  2. `Docs/Database_Schema.md` - Database structure reference
+  3. `Docs/Implementation.md` - Current sprint tasks and progress
+  4. `Docs/project_structure.md` - Code organization guidelines
+  5. `Docs/UI_UX_doc.md` - Design system requirements
+  6. `Docs/Bug_tracking.md` - Known issues and solutions
+
+### **Quality Assurance Standards**
+- **MANDATORY** functional testing before task completion
+- **REQUIRED** database constraint validation
+- **ESSENTIAL** API endpoint testing with documented schemas
+- **CRITICAL** frontend/backend integration testing
+- **MANDATORY** commit and push all changes immediately after completion
+
+### **Development Server Management**
+- **AUTOMATICALLY** start required development servers (API, mobile)
+- **PROACTIVELY** handle port conflicts and process management
+- **CONTINUOUSLY** monitor server health and restart as needed
+- **IMMEDIATELY** address bundling errors and configuration issues
+
+### **Git Workflow Standards**
+- **STRUCTURED** commit messages following established format
+- **IMMEDIATE** pushing of changes to remote repository
+- **PROACTIVE** branch management and conflict resolution
+- **COMPREHENSIVE** documentation of all changes and decisions
+
 Output Expectations
 
 - Code Examples Provide code snippets that align with the guidelines above.
 - Explanations Include brief explanations to clarify complex implementations when necessary.
 - Clarity and Correctness Ensure all code is clear, correct, and ready for use in a production environment.
 - Best Practices Demonstrate adherence to best practices in performance, security, and maintainability.
+
+**CRITICAL REMINDER:** These workflow standards are MANDATORY. Any deviation must be explicitly justified and documented. The database schema documentation is the single source of truth for all database-related development.
