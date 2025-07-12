@@ -13,7 +13,14 @@ datasource db {
 model User {
   id               String   @id @default(cuid())
   walletAddress    String   @unique
+  twitterHandle    String?  @unique // Twitter username without @, e.g., "elonmusk"
+  twitterId        String?  @unique // Twitter user ID for API consistency
+  displayName      String?  // Display name for UI
+  avatar           String?  // Profile picture URL
+  bio              String?  // User bio/description
   subscriptionTier String   @default("free") // free, degen, market_maker
+  isVerified       Boolean  @default(false) // Twitter verified status
+  followerCount    Int?     // Twitter follower count for social proof
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

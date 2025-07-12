@@ -13,11 +13,60 @@
 - ✅ React Navigation compatibility issues resolved
 - ✅ All changes committed and pushed to main branch
 - ✅ Old main branch safely backed up to `backup/old-main-structure`
+- ✅ Comprehensive database schema documentation created
 
 **Current Development Status:**
 - API Server: ✅ Running on port 3000 with leaderboard data
 - Mobile App: ✅ Running on port 8081 with QR code ready for testing
 - Git Repository: ✅ Clean main branch with monorepo structure
+- Database Schema: ✅ Documented with Twitter integration support
+
+## 📋 **Updated Development Workflow**
+
+### **Before Starting Any Task:**
+1. **Consult Documentation in Order:**
+   - `Docs/project.md` - Master PRD and requirements
+   - `Docs/Database_Schema.md` - **NEW** Database structure reference
+   - `Docs/Implementation.md` - Current sprint tasks and progress
+   - `Docs/project_structure.md` - Code organization guidelines
+   - `Docs/UI_UX_doc.md` - Design system requirements
+   - `Docs/Bug_tracking.md` - Known issues and solutions
+
+2. **Database-Related Tasks:**
+   - **ALWAYS** reference `Docs/Database_Schema.md` before any database work
+   - **NEVER** modify Prisma schema without updating schema documentation
+   - **MANDATORY** update schema version and changelog for any database changes
+   - **VERIFY** API endpoints align with documented schema
+
+3. **Task Dependencies:**
+   - Check implementation dependencies in current phase
+   - Verify all prerequisite tasks are completed
+   - Ensure database schema supports planned features
+
+### **Enhanced Task Execution Protocol:**
+
+#### **1. Database Schema Compliance**
+- **Before any database work:** Check `Docs/Database_Schema.md`
+- **Schema changes:** Update both Prisma schema AND documentation
+- **API development:** Ensure endpoints match documented schema
+- **Migration planning:** Follow documented migration strategy
+
+#### **2. Architecture Compliance**
+- Check `Docs/project_structure.md` for monorepo organization
+- Verify new files follow established patterns
+- Ensure dependency management follows pnpm workspace rules
+
+#### **3. API Development Standards**
+- All endpoints must align with database schema documentation
+- Follow established naming conventions from schema docs
+- Implement proper error handling and validation
+- Document new endpoints in schema documentation
+
+#### **4. Testing & Validation**
+- **Database testing:** Verify schema constraints work correctly
+- **API testing:** Test with documented field requirements
+- **Integration testing:** Ensure frontend/backend schema alignment
+- **Performance testing:** Validate indexing strategy effectiveness
 
 ## Feature Analysis
 
@@ -70,14 +119,16 @@
 - [x] Set up pnpm workspace monorepo structure as defined in project_structure.md
 - [x] Initialize React Native app with Expo Router in /apps/mobile
 - [x] Initialize Fastify backend in /apps/api
-- [ ] Configure Supabase project and connect backend
+- [x] Configure Supabase project and connect backend
 - [x] Set up shared TypeScript types in /packages/shared-types
+- [x] **NEW:** Create comprehensive database schema documentation
 
 #### Phase 1.2: Database & Core Infrastructure (Days 3-4)  
 - [x] Generate Supabase database schema (users, subscriptions, leaderboard_cache, notification_preferences)
 - [x] Set up Prisma ORM with Supabase connection
 - [x] Create initial database migrations
-- [ ] Implement basic Solana wallet authentication in React Native
+- [x] **NEW:** Add Twitter integration fields to User model
+- [ ] **UPDATED:** Implement Solana wallet authentication with Twitter linking
 - [x] Set up environment configuration for all apps
 
 #### Phase 1.3: Leaderboard Data Pipeline (Day 5)
@@ -95,190 +146,91 @@
 - [ ] Test Geyser connection stability and data quality
 
 ### Sprint 2 (Days 8-14): Core Features & Frontend Implementation  
-**Goal:** Functional UI for core features with real-time data integration.
+**Goal:** Functional UI for core features with real-time data integration and Twitter integration.
 
-#### Phase 2.1: Leaderboard UI & User Onboarding (Days 8-9)
+#### Phase 2.1: User Authentication & Profile Management (Days 8-9)
+- [ ] **UPDATED:** Build user registration with wallet + Twitter authentication
+- [ ] Implement Twitter OAuth integration for profile enhancement
+- [ ] Create user profile management endpoints aligned with schema
+- [ ] Build user profile UI with Twitter integration features
+- [ ] Test Twitter data synchronization and validation
+
+#### Phase 2.2: Leaderboard UI & Social Features (Days 10-11)
 - [ ] Build Leaderboard screen UI in /apps/mobile/app/(tabs)/leaderboard.tsx
-- [ ] Implement time filters (1h, 1d, 7d, 30d) and token ecosystem filters
+- [ ] Implement time filters (1h, 1d, 7d, 30d) and ecosystem filters
 - [ ] Connect frontend to /api/v1/leaderboard endpoint
-- [ ] Implement Solana Wallet Adapter for authentication
-- [ ] Create onboarding flow with wallet connection
+- [ ] **NEW:** Add Twitter handles and social proof to leaderboard display
+- [ ] Implement user profile cards with Twitter integration
 
-#### Phase 2.2: Live Feed Implementation (Days 10-12)
-- [ ] Modify geyser.service.ts to push trades to WebSocket instead of console
+#### Phase 2.3: Live Feed & Social Context (Days 12-13)
+- [ ] Modify geyser.service.ts to push trades to WebSocket
 - [ ] Filter trades to only include top-100 wallets from leaderboard
-- [ ] Build Live Feed UI in /apps/mobile/app/(tabs)/feed.tsx  
-- [ ] Implement WebSocket client in React Native
-- [ ] Display real-time trade stream with proper formatting
-- [ ] Add connection status indicators and error handling
+- [ ] Build Live Feed UI with Twitter profile information
+- [ ] **NEW:** Display trader Twitter handles and verification status
+- [ ] Add social context to trade notifications
 
-#### Phase 2.3: Gems Scan & Profile Features (Days 13-14)
-- [ ] Build /api/v1/wallets/{address}/holdings endpoint using Solana RPC
-- [ ] Implement gems discovery logic (holdings > 0.01 SOL from top traders)
-- [ ] Build Gems Scan UI in /apps/mobile/app/(tabs)/gems.tsx
-- [ ] Create token cards showing holder information and social proof
-- [ ] Build basic User Profile screen framework
-- [ ] Implement wallet address lookup and trading history display
+#### Phase 2.4: Enhanced User Experience (Day 14)
+- [ ] **NEW:** Implement user discovery via Twitter handles
+- [ ] Add social proof indicators throughout UI
+- [ ] Build notification preferences with Twitter integration
+- [ ] Test complete user flow with Twitter authentication
 
-### Sprint 3 (Days 15-20): Monetization, Polish & Submission
-**Goal:** Integrate killer feature (notifications), polish to professional standard, prepare winning submission.
+### Sprint 3 (Days 15-20): Monetization, Polish & Social Features
+**Goal:** Integrate killer features, leverage Twitter data for engagement, prepare winning submission.
 
-#### Phase 3.1: Solana Pay & Subscriptions (Days 15-16)
+#### Phase 3.1: Solana Pay & Enhanced Subscriptions (Days 15-16)
 - [ ] Implement Solana Pay backend logic for subscription tiers
-- [ ] Create subscription plans table and payment verification
-- [ ] Build subscription modal UI with plan selection
-- [ ] Integrate Solana Pay QR code generation and payment flow
-- [ ] Create webhook listener for payment confirmations
-- [ ] Update user subscription status after successful payments
+- [ ] **NEW:** Add Twitter verification bonus for subscription pricing
+- [ ] Create subscription plans with social features
+- [ ] Build subscription modal with Twitter profile integration
+- [ ] Test payment flow with Twitter-enhanced user profiles
 
-#### Phase 3.2: Push Notifications (Day 17)
+#### Phase 3.2: Social Notifications & Discovery (Days 17-18)
 - [ ] Configure Firebase Cloud Messaging project
-- [ ] Implement FCM device token registration in React Native
-- [ ] Create notification service in backend (/apps/api/src/services/notification.service.ts)
-- [ ] Implement notification filtering logic (SOL amount, market cap)
-- [ ] Set up notification triggering when subscribed wallet trades
-- [ ] Test end-to-end notification flow
+- [ ] **NEW:** Implement Twitter-based notification preferences
+- [ ] Add social discovery features (find traders by Twitter handle)
+- [ ] Create notification templates with Twitter profile data
+- [ ] Test social notification system end-to-end
 
-#### Phase 3.3: Final Polish & Testing (Days 18-19)
-- [ ] Conduct comprehensive testing across all features and devices
-- [ ] Fix critical bugs and performance issues
-- [ ] Implement proper error boundaries and loading states
-- [ ] Add animations and micro-interactions for polish
-- [ ] Optimize bundle size and app performance
-- [ ] Test Solana Pay flow on real devices
-- [ ] Verify push notifications work reliably
+#### Phase 3.3: Final Polish & Social Features (Day 19)
+- [ ] **NEW:** Implement Twitter share functionality for trades
+- [ ] Add social proof elements throughout the app
+- [ ] Test Twitter integration across all features
+- [ ] Optimize performance with Twitter data caching
+- [ ] Conduct comprehensive testing with Twitter authentication
 
 #### Phase 3.4: Hackathon Submission (Day 20)
-- [ ] Record compelling 3-minute demo video
-- [ ] Create presentation deck highlighting novelty and technical excellence
-- [ ] Polish GitHub repository with comprehensive README
-- [ ] Prepare live demo environment
-- [ ] Submit project to hackathon platform
-- [ ] Create social media content showcasing the app
+- [ ] Record demo video highlighting Twitter integration
+- [ ] **NEW:** Showcase social features as competitive advantage
+- [ ] Create presentation deck emphasizing social proof elements
+- [ ] Submit project with comprehensive Twitter integration
+- [ ] Prepare social media campaign leveraging Twitter features
 
-## Resource Links
+## Updated Resource Links
 
-### Official Documentation:
+### **Database & Schema:**
+- **NEW:** `Docs/Database_Schema.md` - Complete database reference
+- [Prisma Schema Documentation](https://www.prisma.io/docs/concepts/components/prisma-schema)
+- [SQLite Documentation](https://www.sqlite.org/docs.html)
+
+### **Twitter Integration:**
+- **NEW:** [Twitter API v2 Documentation](https://developer.twitter.com/en/docs/twitter-api)
+- **NEW:** [Twitter OAuth 2.0 Flow](https://developer.twitter.com/en/docs/authentication/oauth-2-0)
+- **NEW:** [Twitter User Profile Data](https://developer.twitter.com/en/docs/twitter-api/users/lookup/api-reference)
+
+### **Official Documentation:**
 - [Solana Mobile React Native Quickstart](https://docs.solanamobile.com/react-native/quickstart)
 - [Yellowstone gRPC Documentation](https://www.helius.dev/docs/grpc)
 - [Dune Analytics API Reference](https://docs.dune.com/api-reference/overview/introduction)
 - [Solana Pay Specification](https://docs.solanapay.com/)
 - [Firebase Cloud Messaging](https://firebase.google.com/docs/cloud-messaging)
 
-### Development Tools:
-- [Expo React Native Documentation](https://docs.expo.dev/)
-- [Prisma ORM Documentation](https://www.prisma.io/docs/)
-- [React Native Paper Documentation](https://callstack.github.io/react-native-paper/)
-- [Zustand State Management](https://zustand-demo.pmnd.rs/)
+## **Critical Rules - MANDATORY**
+- **NEVER** modify database schema without updating `Docs/Database_Schema.md`
+- **ALWAYS** check database schema documentation before API development
+- **MANDATORY** update schema version and changelog for any database changes
+- **VERIFY** all Twitter integration follows documented field constraints
+- **ENSURE** API endpoints align with documented database schema
+- **TEST** database constraints and relationships before deployment
 
-### Best Practices:
-- [React Native Performance Guide](https://reactnative.dev/docs/performance)
-- [Solana Web3.js Best Practices](https://solana-labs.github.io/solana-web3.js/)
-- [Mobile App Security Guidelines](https://owasp.org/www-project-mobile-app-security-testing-guide/)
-
-## Database Schema Overview
-
-### Core Tables:
-- **Users**: Wallet addresses, subscription tiers, preferences
-- **Tokens**: Token metadata, platform identification, pricing data
-- **Trades**: Transaction records with SOL amounts and timestamps
-- **Leaderboard_Cache**: Pre-computed rankings for fast access
-- **Subscriptions**: Payment records and subscription management
-- **Notifications**: User notification preferences and history
-
-### Key Relationships:
-- Users → Subscriptions (one-to-many)
-- Users → Notification_Preferences (one-to-many)
-- Tokens → Trades (one-to-many)
-- Users → Trades (one-to-many via wallet_address)
-
-## API Architecture
-
-### RESTful Endpoints:
-- `/api/leaderboards` - PNL and volume rankings
-- `/api/trades/live` - WebSocket endpoint for real-time trades
-- `/api/gems` - Token discovery and holdings analysis
-- `/api/users/profile` - User trading statistics
-- `/api/subscriptions` - Payment and subscription management
-- `/api/notifications` - Push notification configuration
-
-### Real-Time Connections:
-- WebSocket for live trade feeds
-- Server-sent events for leaderboard updates
-- Push notifications for subscription alerts
-
-## Security Considerations
-
-### Authentication:
-- Wallet-based authentication using message signing
-- JWT tokens for session management
-- Rate limiting on all API endpoints
-
-### Data Protection:
-- Encrypt sensitive user preferences
-- Secure payment processing through Solana Pay
-- Input validation and sanitization
-
-### Infrastructure:
-- HTTPS everywhere with proper certificate management
-- Database connection encryption
-- Secure environment variable management
-
-## Performance Targets
-
-### Mobile App:
-- App launch time: <2 seconds
-- Navigation response: <100ms
-- Real-time update latency: <1 second
-
-### Backend:
-- API response time: <200ms (95th percentile)
-- Leaderboard refresh rate: Every 5 minutes
-- Live trade processing: <500ms end-to-end
-
-### Data Processing:
-- Historical data sync: Every 4 hours
-- Real-time stream processing: <100ms
-- Notification delivery: <5 seconds
-
-## Deployment Strategy
-
-### Development:
-- Local development with Docker Compose
-- Staging environment on Vercel/Railway
-- Automated testing with GitHub Actions
-
-### Production:
-- Mobile app deployment via Expo Application Services
-- Backend deployment on Railway or AWS
-- Database hosting on PlanetScale or Supabase
-- CDN integration for static assets
-
-## Risk Mitigation
-
-### Technical Risks:
-- Yellowstone gRPC rate limits → Implement caching and fallbacks
-- Database performance → Proper indexing and query optimization
-- Mobile performance → Code splitting and lazy loading
-
-### Business Risks:
-- API cost scaling → Implement usage monitoring and optimization
-- User adoption → Focus on core value proposition first
-- Competition → Rapid iteration and unique features
-
-## Success Metrics
-
-### User Engagement:
-- Daily active users
-- Session duration
-- Feature usage rates
-
-### Technical Performance:
-- API response times
-- App crash rates
-- Real-time data accuracy
-
-### Business Metrics:
-- Subscription conversion rates
-- Revenue per user
-- User retention rates 
+Remember: The database schema documentation is now the single source of truth for all database-related development. Any deviation must be documented and approved. 
