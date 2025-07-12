@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  walletAddress    String   @unique
+  subscriptionTier String   @default("free") // free, degen, market_maker
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  subscriptions           Subscription[]
+  notificationPreferences NotificationPreference[]
+  trades                  Trade[]
+
+  @@map("users")
+}
+
+model Token {
+  address    String  @id
+  symbol     String
+  name       String
+  decimals   Int
+  ecosystem  String // all, pump.fun, letsbonk.fun
+  marketCap  Float?
+  price      Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  trades    Trade[]
+  holdings  TokenHolding[]
+
+  @@map("tokens")
+}
+
+model Trade {
+  id            String   @id @default(cuid())
+  signature     String   @unique
+  walletAddress String
+  tokenAddress  String
+  action        String   // buy, sell
+  amountSol     Float
+  amountToken   Float
+  price         Float
+  timestamp     DateTime
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user  User  @relation(fields: [walletAddress], references: [walletAddress])
+  token Token @relation(fields: [tokenAddress], references: [address])
+
+  @@map("trades")
+}
+
+model LeaderboardCache {
+  id           String   @id @default(cuid())
+  walletAddress String
+  leaderboardType String // pnl, volume
+  timeframe    String   // 1h, 1d, 7d, 30d
+  ecosystem    String   // all, pump.fun, letsbonk.fun
+  rank         Int
+  metric       Float    // PNL or Volume in SOL
+  calculatedAt DateTime @default(now())
+  expiresAt    DateTime
+
+  @@unique([walletAddress, leaderboardType, timeframe, ecosystem])
+  @@map("leaderboard_cache")
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  tier      String   // free, degen, market_maker
+  status    String   // active, inactive, expired
+  solAmount Float?   // Amount paid in SOL
+  signature String?  // Solana transaction signature
+  startDate DateTime @default(now())
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model NotificationPreference {
+  id            String   @id @default(cuid())
+  userId        String
+  walletAddress String   // Wallet to watch
+  minSolAmount  Float    @default(0.01)
+  minMarketCap  Float?
+  maxMarketCap  Float?
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notification_preferences")
+}
+
+model NotificationHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  walletAddress String   // Wallet that triggered the notification
+  tradeId       String   // Reference to the trade
+  message       String
+  sent          Boolean  @default(false)
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@map("notification_history")
+}
+
+model TokenHolding {
+  id            String   @id @default(cuid())
+  tokenAddress  String
+  walletAddress String
+  amount        Float
+  valueSol      Float
+  lastUpdated   DateTime @default(now())
+
+  // Relations
+  token Token @relation(fields: [tokenAddress], references: [address])
+
+  @@unique([tokenAddress, walletAddress])
+  @@map("token_holdings")
+} 
