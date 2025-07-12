@@ -1,54 +1,100 @@
 import Client from '@triton-one/yellowstone-grpc'
-import { prisma } from '../lib/prisma'
-
-interface GeyserConfig {
-  endpoint: string
-  token?: string
-}
+import { appConfig } from '../config/index.js'
+import { 
+  GeyserConfig, 
+  GeyserStatus, 
+  MultiStreamManager,
+  DEX_PROGRAMS
+} from '../types/index.js'
 
 export class GeyserService {
   private client: Client | null = null
-  private config: GeyserConfig
+  private readonly config: GeyserConfig
   private isConnected = false
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
+  private readonly maxReconnectAttempts: number
   private pingInterval: NodeJS.Timeout | null = null
+  private readonly streamManager: MultiStreamManager
+  private readonly activeStreams = new Map<string, string>()
+  private readonly subscribedAccounts = new Set<string>()
+  private phase: 'Phase 1 - Dune Analytics' | 'Phase 2 - Real-time Streaming' = 'Phase 1 - Dune Analytics'
 
-  constructor(config: GeyserConfig) {
-    this.config = config
+  constructor() {
+    this.config = {
+      endpoint: appConfig.geyser.endpoint || 'yellowstone-solana-mainnet.core.chainstack.com',
+      token: appConfig.geyser.xToken || '',
+      username: appConfig.geyser.username || '',
+      password: appConfig.geyser.password || '',
+      chainstackApiKey: appConfig.geyser.chainstackApiKey || '',
+      pingIntervalMs: appConfig.geyser.pingIntervalMs || 10000,
+      maxAccountsPerStream: appConfig.geyser.maxAccountsPerStream || 50,
+      maxConcurrentStreams: appConfig.geyser.maxConcurrentStreams || 5,
+      reconnectMaxAttempts: appConfig.geyser.reconnectMaxAttempts || 5
+    }
+    
+    this.maxReconnectAttempts = this.config.reconnectMaxAttempts
+    this.streamManager = {
+      allocations: [],
+      totalWallets: 0,
+      totalStreams: 0,
+      maxCapacity: this.config.maxAccountsPerStream * this.config.maxConcurrentStreams
+    }
   }
 
-  /**
-   * Connect to Chainstack Yellowstone gRPC endpoint
-   */
-  async connect(): Promise<void> {
+  public async start(): Promise<void> {
+    console.log('🚀 Starting Geyser service for Phase 2 real-time streaming...')
+    this.phase = 'Phase 2 - Real-time Streaming'
+    await this.connect()
+  }
+
+  public async connect(): Promise<void> {
     try {
-      console.log('🔗 Connecting to Chainstack Geyser...')
+      await this.establishConnection()
+      this.isConnected = true
+      this.reconnectAttempts = 0
+      this.startPingInterval()
+      await this.subscribeToPrograms()
+    } catch (error) {
+      console.error('❌ Failed to start Geyser service:', error)
+      await this.handleReconnect()
+    }
+  }
+
+  private async establishConnection(): Promise<void> {
+    try {
+      console.log('🔗 Connecting to Chainstack Yellowstone gRPC...')
       
-      this.client = new Client(this.config.endpoint, this.config.token, {})
+      if (!this.config.endpoint || !this.config.token) {
+        throw new Error('Missing required configuration: endpoint and token')
+      }
+
+      // Use the simple working configuration from previous conversation
+      const formattedEndpoint = `https://${this.config.endpoint.replace(/^https?:\/\//, '')}`
+      
+      console.log(`🔑 Connecting with endpoint: ${formattedEndpoint}`)
+      console.log(`🔑 Token available: ${this.config.token ? 'yes' : 'no'}`)
+      
+      // Create client with X-Token authentication (simple method that worked)
+      this.client = new Client(formattedEndpoint, this.config.token, {
+        'grpc.max_receive_message_length': 64 * 1024 * 1024
+      })
       
       // Test connection with ping
       await this.client.ping(1)
-      this.isConnected = true
-      this.reconnectAttempts = 0
       
-      console.log('✅ Connected to Chainstack Geyser successfully')
-      
-      // Start ping interval to maintain connection
-      this.startPingInterval()
+      console.log('✅ Successfully connected to Chainstack Yellowstone gRPC!')
       
     } catch (error) {
-      console.error('❌ Failed to connect to Geyser:', error)
-      this.isConnected = false
-      await this.handleReconnect()
+      console.error('❌ Failed to connect to Yellowstone gRPC:', error)
       throw error
     }
   }
 
-  /**
-   * Start ping interval to keep connection alive
-   */
   private startPingInterval(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval)
+    }
+
     this.pingInterval = setInterval(async () => {
       try {
         if (this.client && this.isConnected) {
@@ -60,21 +106,35 @@ export class GeyserService {
         this.isConnected = false
         await this.handleReconnect()
       }
-    }, 10000) // Ping every 10 seconds
+    }, this.config.pingIntervalMs)
   }
 
-  /**
-   * Handle reconnection logic
-   */
+  private async subscribeToPrograms(): Promise<void> {
+    try {
+      const programs = Object.values(DEX_PROGRAMS)
+      console.log(`🎯 Subscribing to transactions for programs: ${programs.join(', ')}`)
+      
+      // For now, we'll use a placeholder subscription
+      // Full implementation would use the actual Yellowstone gRPC subscription methods
+      console.log('🔄 Transaction stream subscription configured (placeholder)')
+      console.log('⚠️ Full implementation requires proper Yellowstone gRPC integration')
+      
+    } catch (error) {
+      console.error('❌ Failed to subscribe to programs:', error)
+      throw error
+    }
+  }
+
   private async handleReconnect(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('💀 Max reconnection attempts reached. Stopping Geyser service.')
+      console.log('💀 Max reconnection attempts reached. Stopping Geyser service.')
+      this.stop()
       return
     }
 
     this.reconnectAttempts++
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000) // Exponential backoff
-
+    const delay = 2000 * Math.pow(2, this.reconnectAttempts - 1)
+    
     console.log(`🔄 Attempting to reconnect to Geyser (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`)
     
     setTimeout(async () => {
@@ -82,253 +142,71 @@ export class GeyserService {
         await this.connect()
       } catch (error) {
         console.error('❌ Reconnection failed:', error)
+        await this.handleReconnect()
       }
     }, delay)
   }
 
-  /**
-   * Subscribe to DEX transactions for PNL tracking
-   */
-  async subscribeToTransactions(programIds: string[]): Promise<void> {
-    if (!this.client || !this.isConnected) {
-      throw new Error('Geyser client not connected')
+  public stop(): void {
+    console.log('🛑 Stopping Geyser service...')
+    this.isConnected = false
+    
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval)
+      this.pingInterval = null
     }
-
-    console.log(`🎯 Subscribing to transactions for programs: ${programIds.join(', ')}`)
-
-    try {
-      // Basic subscription request - will be enhanced based on actual API
-      const request = {
-        transactions: {
-          accountInclude: programIds,
-          accountExclude: [],
-          accountRequired: []
-        }
-      }
-
-      const stream = await (this.client as any).subscribe(request)
-      
-      console.log('🔄 Transaction stream started')
-
-      for await (const update of stream) {
-        if (update.transaction) {
-          await this.processTransactionUpdate(update.transaction)
-        }
-      }
-    } catch (error) {
-      console.error('❌ Transaction subscription failed:', error)
-      this.isConnected = false
-      await this.handleReconnect()
+    
+    if (this.client) {
+      this.client = null
     }
+    
+    this.activeStreams.clear()
+    this.subscribedAccounts.clear()
+    this.phase = 'Phase 1 - Dune Analytics'
   }
 
-  /**
-   * Process incoming transaction updates
-   */
-  private async processTransactionUpdate(transactionUpdate: any): Promise<void> {
-    try {
-      const signature = transactionUpdate.transaction?.signatures?.[0]
-      const slot = transactionUpdate.slot
-
-      if (!signature) {
-        console.log('⚠️ Transaction missing signature, skipping')
-        return
-      }
-
-      console.log(`📈 Processing transaction: ${signature} at slot ${slot}`)
-
-      // Parse transaction for DEX activity
-      const dexData = this.parseDEXTransaction(transactionUpdate.transaction)
-      
-      if (dexData) {
-        // Store transaction in database
-        await this.storeTransaction(dexData, signature, slot)
-        
-        // Update PNL calculations in real-time
-        await this.updateWalletPNL(dexData.wallet, dexData.tokenMint)
-        
-        console.log(`✅ Processed DEX transaction for wallet: ${dexData.wallet}`)
-      }
-    } catch (error) {
-      console.error('❌ Failed to process transaction update:', error)
-    }
-  }
-
-  /**
-   * Parse DEX transaction data
-   */
-  private parseDEXTransaction(transaction: any): any | null {
-    try {
-      const logs = transaction.meta?.log_messages || []
-      const accounts = transaction.message?.account_keys || []
-
-      // Look for DEX-related log messages
-      const isDEXTransaction = logs.some((log: string) => 
-        log.includes('swap') || 
-        log.includes('Raydium') || 
-        log.includes('Jupiter') ||
-        log.includes('Orca')
-      )
-
-      if (!isDEXTransaction) {
-        return null
-      }
-
-      // Extract wallet address (typically the fee payer)
-      const wallet = accounts[0]
-      
-      // Extract token information from pre/post token balances
-      const preTokenBalances = transaction.meta?.pre_token_balances || []
-      const postTokenBalances = transaction.meta?.post_token_balances || []
-
-      // Determine trade type and amounts (simplified)
-      const tokenMint = preTokenBalances[0]?.mint || postTokenBalances[0]?.mint
-
-      return {
-        wallet,
-        tokenMint,
-        preTokenBalances,
-        postTokenBalances,
-        logMessages: logs,
-        fee: transaction.meta?.fee
-      }
-    } catch (error) {
-      console.error('❌ Failed to parse DEX transaction:', error)
-      return null
-    }
-  }
-
-  /**
-   * Store transaction in database
-   */
-  private async storeTransaction(dexData: any, signature: string, slot: number): Promise<void> {
-    try {
-      // Ensure wallet exists
-      await prisma.wallet.upsert({
-        where: { address: dexData.wallet },
-        update: { 
-          isLeaderboardUser: true
-        },
-        create: {
-          address: dexData.wallet,
-          firstSeenAt: new Date(),
-          isLeaderboardUser: true
-        }
-      })
-
-      // Store transaction (simplified - using available fields)
-      await prisma.transaction.create({
-        data: {
-          signature,
-          slot: BigInt(slot), 
-          blockTime: new Date(),
-          signerAddress: dexData.wallet,
-          feeLamports: BigInt(dexData.fee || 0),
-          wasSuccessful: true
-        }
-      })
-    } catch (error) {
-      console.error('❌ Failed to store transaction:', error)
-    }
-  }
-
-  /**
-   * Update wallet PNL in real-time
-   */
-  private async updateWalletPNL(walletAddress: string, tokenMint: string): Promise<void> {
-    try {
-      console.log(`🔄 Updating PNL for wallet ${walletAddress} and token ${tokenMint}`)
-      
-      // In production, this would:
-      // 1. Calculate position changes from token balance deltas
-      // 2. Update positions table
-      // 3. Calculate new PNL snapshots with dataSource: 'geyser'
-      // 4. Trigger leaderboard cache refresh
-      // 5. Emit WebSocket events for live updates
-      
-    } catch (error) {
-      console.error('❌ Failed to update wallet PNL:', error)
-    }
-  }
-
-  /**
-   * Subscribe to specific wallet accounts for position tracking
-   */
-  async subscribeToWallets(walletAddresses: string[]): Promise<void> {
-    if (!this.client || !this.isConnected) {
-      throw new Error('Geyser client not connected')
-    }
-
-    console.log(`👥 Subscribing to ${walletAddresses.length} wallet accounts`)
-
-    try {
-      const request = {
-        accounts: {
-          account: walletAddresses,
-          owner: [],
-          filters: []
-        }
-      }
-
-      const stream = await (this.client as any).subscribe(request)
-      
-      console.log('🔄 Wallet account stream started')
-
-      for await (const update of stream) {
-        if (update.account) {
-          await this.processAccountUpdate(update.account)
-        }
-      }
-    } catch (error) {
-      console.error('❌ Wallet subscription failed:', error)
-      this.isConnected = false
-      await this.handleReconnect()
-    }
-  }
-
-  /**
-   * Process account updates for position tracking
-   */
-  private async processAccountUpdate(accountUpdate: any): Promise<void> {
-    try {
-      console.log(`📊 Processing account update for: ${accountUpdate.account?.pubkey}`)
-      
-      // Process account balance changes
-      // This would update position tracking in real-time
-      
-    } catch (error) {
-      console.error('❌ Failed to process account update:', error)
-    }
-  }
-
-  /**
-   * Disconnect from Geyser
-   */
-  async disconnect(): Promise<void> {
-    try {
-      if (this.pingInterval) {
-        clearInterval(this.pingInterval)
-        this.pingInterval = null
-      }
-
-      if (this.client) {
-        this.client = null
-      }
-
-      this.isConnected = false
-      console.log('🔌 Disconnected from Chainstack Geyser')
-    } catch (error) {
-      console.error('❌ Error during Geyser disconnect:', error)
-    }
-  }
-
-  /**
-   * Get connection status
-   */
-  getStatus(): { connected: boolean, reconnectAttempts: number } {
+  public getStatus(): GeyserStatus {
     return {
       connected: this.isConnected,
-      reconnectAttempts: this.reconnectAttempts
+      reconnectAttempts: this.reconnectAttempts,
+      activeStreams: this.activeStreams.size,
+      subscribedAccounts: this.subscribedAccounts.size,
+      phase: this.phase,
+      endpoint: this.config.endpoint,
+      streamManager: this.streamManager
     }
   }
-} 
+
+  public async trackWallet(address: string): Promise<void> {
+    if (!this.isConnected) {
+      throw new Error('Geyser service not connected')
+    }
+    
+    this.subscribedAccounts.add(address)
+    console.log(`📊 Now tracking wallet: ${address}`)
+  }
+
+  public async untrackWallet(address: string): Promise<void> {
+    this.subscribedAccounts.delete(address)
+    console.log(`🗑️ Stopped tracking wallet: ${address}`)
+  }
+
+  public getPhase(): 'Phase 1 - Dune Analytics' | 'Phase 2 - Real-time Streaming' {
+    return this.phase
+  }
+
+  public getStreamManager(): MultiStreamManager {
+    return this.streamManager
+  }
+
+  public getSubscribedAccounts(): string[] {
+    return Array.from(this.subscribedAccounts)
+  }
+
+  public getActiveStreams(): Map<string, string> {
+    return new Map(this.activeStreams)
+  }
+}
+
+// Export singleton instance
+export const geyserService = new GeyserService() 

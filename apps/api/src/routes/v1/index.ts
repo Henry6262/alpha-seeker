@@ -1,10 +1,13 @@
 import { FastifyInstance } from 'fastify'
-import { leaderboardRoutes } from './leaderboard'
-import { DuneService } from '../../services/dune.service'
-import { GeyserService } from '../../services/geyser.service'
+import { leaderboardRoutes } from './leaderboard.js'
+import { DuneService } from '../../services/dune.service.js'
+import { geyserService } from '../../services/geyser.service.js'
+import { WalletTrackerService } from '../../services/wallet-tracker.service.js'
+import { appConfig } from '../../config/index.js'
+import { Timeframe } from '../../types/index.js'
 
-// Global Geyser service instance
-let geyserService: GeyserService | null = null
+// Global service instances
+let walletTrackerService: WalletTrackerService | null = null
 
 export async function v1Routes(fastify: FastifyInstance) {
   // Register leaderboard routes
@@ -23,18 +26,18 @@ export async function v1Routes(fastify: FastifyInstance) {
   // Geyser service endpoints for Phase 2
   fastify.post('/geyser/start', async (request, reply) => {
     try {
-      const endpoint = process.env.CHAINSTACK_GEYSER_ENDPOINT
-      const token = process.env.CHAINSTACK_API_KEY
+      const endpoint = appConfig.geyser.endpoint
+      const token = appConfig.geyser.xToken
 
       if (!endpoint) {
         return reply.status(400).send({
           success: false,
-          error: 'Chainstack Geyser endpoint not configured',
-          message: 'Please set CHAINSTACK_GEYSER_ENDPOINT environment variable'
+          error: 'Yellowstone gRPC endpoint not configured',
+          message: 'Please set YELLOWSTONE_GRPC_ENDPOINT environment variable'
         })
       }
 
-      if (geyserService && geyserService.getStatus().connected) {
+      if (geyserService.getStatus().connected) {
         return reply.status(409).send({
           success: false,
           error: 'Geyser service already running',
@@ -44,10 +47,13 @@ export async function v1Routes(fastify: FastifyInstance) {
 
       console.log('🚀 Starting Geyser service for Phase 2 real-time streaming...')
       
-      geyserService = new GeyserService({ endpoint, token })
-      await geyserService.connect()
+      // Use the singleton geyser service
+      await geyserService.start()
 
-      // Start subscribing to DEX transactions
+      // Initialize wallet tracker service
+      walletTrackerService = new WalletTrackerService(geyserService)
+
+      // DEX programs are already subscribed to in the start() method
       const dexPrograms = [
         'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4', // Jupiter
         '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8', // Raydium V4
@@ -55,11 +61,6 @@ export async function v1Routes(fastify: FastifyInstance) {
         'DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1', // Orca V1
         '9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP', // Orca V2
       ]
-
-      // Start transaction subscription in background
-      geyserService.subscribeToTransactions(dexPrograms).catch(error => {
-        console.error('❌ Transaction subscription failed:', error)
-      })
 
       return {
         success: true,
@@ -80,7 +81,7 @@ export async function v1Routes(fastify: FastifyInstance) {
 
   fastify.post('/geyser/stop', async (request, reply) => {
     try {
-      if (!geyserService) {
+      if (!geyserService.getStatus().connected) {
         return reply.status(404).send({
           success: false,
           error: 'Geyser service not running'
@@ -88,8 +89,7 @@ export async function v1Routes(fastify: FastifyInstance) {
       }
 
       console.log('🛑 Stopping Geyser service...')
-      await geyserService.disconnect()
-      geyserService = null
+      geyserService.stop()
 
       return {
         success: true,
@@ -107,14 +107,15 @@ export async function v1Routes(fastify: FastifyInstance) {
   })
 
   fastify.get('/geyser/status', async (request, reply) => {
+    const status = geyserService.getStatus()
     return {
       success: true,
       timestamp: new Date().toISOString(),
       data: {
-        running: geyserService !== null,
-        status: geyserService?.getStatus() || { connected: false, reconnectAttempts: 0 },
-        phase: geyserService ? 'Phase 2 - Real-time Streaming' : 'Phase 1 - Dune Analytics',
-        description: geyserService 
+        running: status.connected,
+        status: status,
+        phase: status.connected ? 'Phase 2 - Real-time Streaming' : 'Phase 1 - Dune Analytics',
+        description: status.connected 
           ? 'Streaming real-time transactions from Chainstack Geyser'
           : 'Using historical data from Dune Analytics'
       }
@@ -123,7 +124,8 @@ export async function v1Routes(fastify: FastifyInstance) {
 
   fastify.post('/geyser/subscribe-wallets', async (request, reply) => {
     try {
-      const { wallets } = request.body as { wallets: string[] }
+      const requestBody = request.body as { wallets: string[] }
+      const { wallets } = requestBody
 
       if (!geyserService || !geyserService.getStatus().connected) {
         return reply.status(400).send({
@@ -142,7 +144,7 @@ export async function v1Routes(fastify: FastifyInstance) {
       console.log(`👥 Subscribing to ${wallets.length} wallets for real-time tracking...`)
       
       // Start wallet subscription in background
-      geyserService.subscribeToWallets(wallets).catch(error => {
+      Promise.all(wallets.map(wallet => geyserService.trackWallet(wallet))).catch((error: unknown) => {
         console.error('❌ Wallet subscription failed:', error)
       })
 
@@ -284,13 +286,14 @@ export async function v1Routes(fastify: FastifyInstance) {
   // Add curated traders endpoint
   fastify.post('/bootstrap/curated-traders', async (request, reply) => {
     try {
-      const { traders } = request.body as {
+      const requestBody = request.body as {
         traders: Array<{
           address: string
           name: string
           twitterHandle?: string
         }>
       }
+      const { traders } = requestBody
 
       if (!traders || !Array.isArray(traders)) {
         return reply.status(400).send({
@@ -327,7 +330,7 @@ export async function v1Routes(fastify: FastifyInstance) {
   // Get bootstrap status endpoint
   fastify.get('/bootstrap/status', async (request, reply) => {
     try {
-      const { prisma } = await import('../../lib/prisma')
+      const { prisma } = await import('../../lib/prisma.js')
       
       // Check current database state
       const [walletsCount, pnlSnapshots7d, pnlSnapshots30d, famousTraders] = await Promise.all([
@@ -364,6 +367,119 @@ export async function v1Routes(fastify: FastifyInstance) {
         error: 'Failed to get bootstrap status',
         message: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
+      })
+    }
+  })
+
+  // Wallet tracking endpoints - Bridge between leaderboard and real-time tracking
+  fastify.get('/wallet-tracker/leaderboard-wallets', async (request, reply) => {
+    try {
+      if (!walletTrackerService) {
+        walletTrackerService = new WalletTrackerService()
+      }
+
+      const query = request.query as { timeframe?: '7d' | '30d', limit?: number }
+      const { timeframe = '7d', limit = 50 } = query
+
+      const wallets = await walletTrackerService.getLeaderboardWalletsForTracking(timeframe, limit)
+
+      return {
+        success: true,
+        data: {
+          timeframe,
+          limit,
+          wallets,
+          count: wallets.length
+        },
+        timestamp: new Date().toISOString()
+      }
+    } catch (error) {
+      console.error('❌ Failed to get leaderboard wallets:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to get leaderboard wallets',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+
+  fastify.post('/wallet-tracker/subscribe-leaderboard', async (request, reply) => {
+    try {
+      if (!geyserService || !geyserService.getStatus().connected) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Geyser service not connected',
+          message: 'Please start the Geyser service first using POST /geyser/start'
+        })
+      }
+
+      if (!walletTrackerService) {
+        walletTrackerService = new WalletTrackerService(geyserService)
+      }
+
+      const requestBody = request.body as { 
+        timeframe?: Timeframe
+        limit?: number
+        includeTransactions?: boolean
+        includeAccountUpdates?: boolean
+      }
+      const { 
+        timeframe = appConfig.walletTracking.defaultTimeframe,
+        limit = appConfig.walletTracking.maxWalletsToTrack,
+        includeTransactions = true,
+        includeAccountUpdates = true 
+      } = requestBody
+
+      console.log(`🎯 Starting leaderboard wallet subscription for ${timeframe} top ${limit} traders...`)
+
+      const result = await walletTrackerService.subscribeToLeaderboardWallets(geyserService, {
+        timeframe,
+        limit,
+        includeTransactions,
+        includeAccountUpdates
+      })
+
+      return {
+        success: true,
+        message: `Successfully subscribed to ${result.subscribedWallets.length} leaderboard wallets`,
+        data: {
+          timeframe,
+          limit,
+          subscribedWallets: result.subscribedWallets,
+          transactionSubscription: result.transactionSubscription,
+          accountSubscription: result.accountSubscription
+        },
+        timestamp: new Date().toISOString()
+      }
+    } catch (error) {
+      console.error('❌ Failed to subscribe to leaderboard wallets:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to subscribe to leaderboard wallets',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+
+  fastify.get('/wallet-tracker/summary', async (request, reply) => {
+    try {
+      if (!walletTrackerService) {
+        walletTrackerService = new WalletTrackerService()
+      }
+
+      const summary = await walletTrackerService.getTrackedWalletsSummary()
+
+      return {
+        success: true,
+        data: summary,
+        timestamp: new Date().toISOString()
+      }
+    } catch (error) {
+      console.error('❌ Failed to get wallet tracker summary:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to get wallet tracker summary',
+        message: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   })

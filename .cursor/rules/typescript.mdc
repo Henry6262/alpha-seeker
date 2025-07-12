@@ -1,0 +1,162 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# TypeScript Development Rules - Cursor
+
+## Core TypeScript Standards
+
+### Language Features
+- **Use TypeScript for all code** - prefer interfaces over types for object shapes
+- **Utilize Zod for schema validation** and type inference
+- **Avoid enums** - use literal types or maps instead
+- **Implement functional components** with TypeScript interfaces for props
+- **Use strict mode** - enable all strict TypeScript compiler options
+
+### Code Style and Structure
+- **Write concise, technical TypeScript code** with accurate examples
+- **Use functional and declarative programming patterns** - avoid classes
+- **Prefer iteration and modularization** over code duplication
+- **Use descriptive variable names** with auxiliary verbs (`isLoading`, `hasError`)
+- **Structure files** with exported components, subcomponents, helpers, static content, and types
+- **Favor named exports** for components and functions
+- **Use lowercase with dashes** for directory names (`components/auth-wizard`)
+
+### Type Safety Best Practices
+- **Explicit return types** for all functions and methods
+- **Strict null checks** - handle undefined/null cases explicitly
+- **Use type guards** for runtime type checking
+- **Avoid `any` type** - use `unknown` or specific types instead
+- **Use generic types** for reusable components and functions
+- **Implement proper type narrowing** with discriminated unions
+
+### Error Handling & Validation
+- **Prioritize error handling** and edge cases
+- **Handle errors at function start** - use early returns
+- **Implement guard clauses** for preconditions and invalid states
+- **Use custom error types** or factories for consistency
+- **Validate inputs** with Zod schemas at API boundaries
+- **Provide meaningful error messages** for debugging
+
+### Syntax and Formatting
+- **Use `function` keyword** for pure functions
+- **Write declarative JSX** with clear structure
+- **Avoid unnecessary curly braces** in conditionals
+- **Use template literals** for string interpolation
+- **Consistent indentation** - 2 spaces
+- **Semicolons required** at line endings
+
+### State Management Patterns
+- **Use Zustand** for global state management
+- **Use TanStack React Query** for server state
+- **Minimize useEffect usage** - favor derived state
+- **Implement proper memoization** with useMemo/useCallback
+- **Use reducer pattern** for complex state updates
+
+### Performance Optimization
+- **Optimize for web and mobile** performance
+- **Use dynamic imports** for code splitting
+- **Implement lazy loading** for components
+- **Optimize bundle size** - tree shake unused code
+- **Use React.memo** for expensive components
+- **Implement proper key props** for lists
+
+### Backend TypeScript Standards
+- **Use Fastify** with TypeScript decorators
+- **Implement proper request/response types** for all endpoints
+- **Use Prisma** with generated TypeScript types
+- **Validate API inputs** with Zod schemas
+- **Implement proper middleware** typing
+- **Use dependency injection** patterns
+
+### Database & API Integration
+- **Use Supabase** with TypeScript client
+- **Generate types** from database schema
+- **Implement proper transaction handling**
+- **Use prepared statements** for queries
+- **Validate data exchange** with Zod schemas
+- **Handle async operations** with proper error boundaries
+
+### Cross-Platform Development
+- **Use Solito** for navigation typing
+- **Implement platform-specific** components with `.native.tsx`
+- **Use Tamagui** for cross-platform UI components
+- **Handle platform differences** in types
+- **Use conditional imports** for platform-specific code
+
+### Testing Standards
+- **Write unit tests** for all utilities and pure functions
+- **Use integration tests** for API endpoints
+- **Mock external dependencies** properly
+- **Use type-safe test utilities**
+- **Implement proper test fixtures** with TypeScript
+
+### Import/Export Conventions
+- **Use barrel exports** for clean imports
+- **Organize imports** - external, internal, relative
+- **Use path aliases** for cleaner imports
+- **Avoid circular dependencies**
+- **Use default exports** sparingly
+
+### Documentation Standards
+- **Use JSDoc comments** for complex functions
+- **Document type definitions** with examples
+- **Maintain README** with TypeScript setup
+- **Use inline comments** for complex logic
+- **Document API contracts** with OpenAPI/Swagger
+
+### Monorepo TypeScript Management
+- **Use shared tsconfig** for consistency
+- **Implement proper path mapping** across packages
+- **Use project references** for build optimization
+- **Share common types** across packages
+- **Use workspace dependencies** properly
+
+## MANDATORY COMPLIANCE RULES
+
+### Code Quality Gates
+- **Zero TypeScript errors** before committing
+- **Strict type checking** enabled
+- **No implicit any** warnings
+- **Unused imports** must be removed
+- **Consistent formatting** with Prettier
+
+### Development Workflow
+- **Type-first development** - define types before implementation
+- **Incremental typing** - improve type safety over time
+- **Regular type audits** - review and improve types
+- **Team type reviews** - collaborate on complex types
+- **Automated type checking** in CI/CD
+
+### Error Prevention
+- **Runtime type validation** at boundaries
+- **Proper error handling** with typed exceptions
+- **Null/undefined safety** checks
+- **Input validation** with schemas
+- **Output validation** for APIs
+
+## Technology-Specific Rules
+
+### React/React Native
+- **Use functional components** with TypeScript
+- **Implement proper prop types** with interfaces
+- **Use hooks** with proper typing
+- **Handle refs** with proper generic types
+- **Use context** with TypeScript providers
+
+### Node.js/Fastify
+- **Use async/await** with proper error handling
+- **Implement middleware** with TypeScript
+- **Use dependency injection** patterns
+- **Handle streams** with proper typing
+- **Use proper HTTP status codes** with types
+
+### Database/Prisma
+- **Use generated types** from Prisma
+- **Implement proper relations** typing
+- **Use transactions** with proper error handling
+- **Handle migrations** with TypeScript
+- **Use proper indexing** strategies
+
+Remember: These rules are MANDATORY and must be followed consistently across all code. TypeScript is not optional - it's the foundation for reliable, maintainable code.

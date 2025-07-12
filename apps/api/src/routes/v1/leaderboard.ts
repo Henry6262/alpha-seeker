@@ -5,18 +5,21 @@ interface LeaderboardQuery {
   timeframe?: '1h' | '1d' | '7d' | '30d'
   ecosystem?: 'all' | 'pump.fun' | 'letsbonk.fun'
   type?: 'pnl' | 'volume'
-  limit?: number
+  limit?: string
 }
 
 export async function leaderboardRoutes(fastify: FastifyInstance) {
   // Get leaderboard data
-  fastify.get('/leaderboard', async (request: FastifyRequest<{ Querystring: LeaderboardQuery }>, reply: FastifyReply) => {
+  fastify.get('/', async (request: FastifyRequest<{ Querystring: LeaderboardQuery }>, reply: FastifyReply) => {
     const { 
       timeframe = '1d', 
       ecosystem = 'all', 
       type = 'pnl',
-      limit = 100 
+      limit = '100' 
     } = request.query
+    
+    // Convert limit to integer
+    const limitNumber = parseInt(limit, 10) || 100
 
     try {
       const leaderboard = await prisma.leaderboardCache.findMany({
@@ -31,7 +34,7 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
         orderBy: {
           rank: 'asc'
         },
-        take: limit
+        take: limitNumber
       })
 
       return {
