@@ -1,8 +1,10 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
 import { TopBar } from "../components/top-bar/top-bar-feature";
-import { HomeScreen } from "../screens/HomeScreen";
-import { BlankScreen } from "../screens/BlankScreen";
+import { DashboardScreen } from "../screens/DashboardScreen";
+import { LeaderboardScreen } from "../screens/LeaderboardScreen";
+import { SettingsScreen } from "../screens/SettingsScreen";
+import { MaterialIcons } from "@expo/vector-icons";
 
 const Tab = createBottomTabNavigator();
 
@@ -15,12 +17,55 @@ const Tab = createBottomTabNavigator();
 export function HomeNavigator() {
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         header: () => <TopBar />,
-      }}
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof MaterialIcons.glyphMap;
+
+          if (route.name === 'Dashboard') {
+            iconName = focused ? 'dashboard' : 'dashboard';
+          } else if (route.name === 'Leaderboard') {
+            iconName = focused ? 'leaderboard' : 'leaderboard';
+          } else if (route.name === 'Settings') {
+            iconName = focused ? 'settings' : 'settings';
+          } else {
+            iconName = 'help';
+          }
+
+          return <MaterialIcons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#2196f3',
+        tabBarInactiveTintColor: 'gray',
+        tabBarStyle: {
+          paddingBottom: 4,
+          height: 60,
+        },
+      })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Blank" component={BlankScreen} />
+      <Tab.Screen 
+        name="Dashboard" 
+        component={DashboardScreen} 
+        options={{ 
+          title: 'Dashboard',
+          tabBarLabel: 'Dashboard'
+        }} 
+      />
+      <Tab.Screen 
+        name="Leaderboard" 
+        component={LeaderboardScreen} 
+        options={{ 
+          title: 'Leaderboard',
+          tabBarLabel: 'Leaderboard'
+        }} 
+      />
+      <Tab.Screen 
+        name="Settings" 
+        component={SettingsScreen} 
+        options={{ 
+          title: 'Settings',
+          tabBarLabel: 'Settings'
+        }} 
+      />
     </Tab.Navigator>
   );
 }
