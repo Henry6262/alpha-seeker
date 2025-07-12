@@ -1,264 +1,273 @@
-# Alpha Seeker Database Schema Documentation
-
-**Last Updated:** 2025-07-12  
-**Database:** SQLite (Development) / PostgreSQL (Production)  
-**ORM:** Prisma  
-**Version:** 1.2.0
+# Alpha-Seeker Database Schema Documentation
 
 ## Overview
+This document defines the complete database schema for the Alpha-Seeker Solana trading intelligence platform. The schema is designed to support real-time data ingestion from Chainstack's Geyser RPC, accurate PNL calculations using weighted average cost basis, and high-performance leaderboard queries.
 
-This document serves as the comprehensive reference for Alpha Seeker's database structure. All database-related development should reference this document to ensure consistency and avoid conflicts.
+## Architectural Principles
+
+### Data Flow Strategy
+The database follows a **hybrid two-phase approach**:
+- **Phase 1**: Bootstrap historical data using Dune Analytics for immediate platform launch
+- **Phase 2**: Real-time ingestion via Chainstack Geyser RPC for live data and independence
+
+### Schema Design Philosophy
+1. **Separation of Concerns**: Raw event data (transactions, token_transfers) separate from aggregated state (positions, pnl_snapshots)
+2. **Performance Optimization**: Pre-calculated aggregates for fast read operations
+3. **Data Source Agnostic**: Schema supports both Dune and Geyser data sources
+4. **Event-Driven Architecture**: PostgreSQL NOTIFY/LISTEN for real-time updates
 
 ## Core Tables
 
-### 1. Users Table (`users`)
-**Purpose:** Store user profile information, wallet addresses, and Twitter integration data
+### 1. wallets
+**Purpose**: Central repository for tracked wallet addresses and their metadata
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| `id` | String | Primary Key, CUID | Unique user identifier |
-| `walletAddress` | String | Unique, Required | Solana wallet address |
-| `twitterHandle` | String | Unique, Optional | Twitter username without @ |
-| `twitterId` | String | Unique, Optional | Twitter user ID for API consistency |
-| `displayName` | String | Optional | User's display name for UI |
-| `avatar` | String | Optional | Profile picture URL |
-| `bio` | String | Optional | User bio/description |
-| `subscriptionTier` | String | Default: "free" | Subscription level: free, degen, market_maker |
-| `isVerified` | Boolean | Default: false | Twitter verified status |
-| `followerCount` | Int | Optional | Twitter follower count for social proof |
-| `createdAt` | DateTime | Auto-generated | Record creation timestamp |
-| `updatedAt` | DateTime | Auto-updated | Record last update timestamp |
+| id | String | PRIMARY KEY | Unique identifier |
+| address | String | UNIQUE | Base-58 encoded wallet address |
+| curatedName | String | NULLABLE | Human-readable name (e.g., "Ansem", "Cobie") |
+| twitterHandle | String | NULLABLE | Twitter username without @ |
+| displayName | String | NULLABLE | Display name for UI |
+| isFamousTrader | Boolean | DEFAULT FALSE, INDEXED | Flag for "Gems" discovery feature |
+| isLeaderboardUser | Boolean | DEFAULT TRUE, INDEXED | Include in leaderboard calculations |
+| firstSeenAt | DateTime | DEFAULT now() | First indexed transaction timestamp |
+| metadataJson | String | NULLABLE | JSON field for additional unstructured data |
 
-**Relationships:**
-- One-to-many: Subscriptions
-- One-to-many: NotificationPreferences
-- One-to-many: Trades
+**Key Features**:
+- Indexed boolean flags for efficient filtering in analytical jobs
+- Flexible metadata storage for future extensibility
+- Supports both curated famous traders and dynamic wallet discovery
 
-### 2. Tokens Table (`tokens`)
-**Purpose:** Store token metadata and ecosystem information
+### 2. transactions
+**Purpose**: Immutable chronological log of transaction events (TimescaleDB hypertable)
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| `address` | String | Primary Key | Token contract address |
-| `symbol` | String | Required | Token symbol (e.g., SOL, BONK) |
-| `name` | String | Required | Token full name |
-| `decimals` | Int | Required | Token decimal places |
-| `ecosystem` | String | Required | Token ecosystem: all, pump.fun, letsbonk.fun |
-| `marketCap` | Float | Optional | Current market capitalization |
-| `price` | Float | Optional | Current price in USD |
-| `createdAt` | DateTime | Auto-generated | Record creation timestamp |
-| `updatedAt` | DateTime | Auto-updated | Record last update timestamp |
+| id | String | PRIMARY KEY | Unique identifier |
+| signature | String | UNIQUE | Base-58 transaction signature |
+| blockTime | DateTime | INDEXED | Confirmed timestamp (primary dimension) |
+| slot | BigInt | INDEXED | Block slot number |
+| signerAddress | String | FK to wallets.address | Primary fee-paying account |
+| feeLamports | BigInt | | Transaction fee in lamports |
+| wasSuccessful | Boolean | DEFAULT TRUE | Transaction success flag |
 
-**Relationships:**
-- One-to-many: Trades
-- One-to-many: TokenHoldings
+**Key Features**:
+- Optimized for high-speed inserts
+- TimescaleDB partitioning by blockTime for performance
+- Lean structure to minimize storage overhead
 
-### 3. Trades Table (`trades`)
-**Purpose:** Store individual trading transactions
-
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `id` | String | Primary Key, CUID | Unique trade identifier |
-| `signature` | String | Unique, Required | Solana transaction signature |
-| `walletAddress` | String | Required, Foreign Key | Trader's wallet address |
-| `tokenAddress` | String | Required, Foreign Key | Token contract address |
-| `action` | String | Required | Trade action: buy, sell |
-| `amountSol` | Float | Required | SOL amount involved |
-| `amountToken` | Float | Required | Token amount involved |
-| `price` | Float | Required | Price at time of trade |
-| `timestamp` | DateTime | Required | Trade execution time |
-| `createdAt` | DateTime | Auto-generated | Record creation timestamp |
-
-**Relationships:**
-- Many-to-one: User (via walletAddress)
-- Many-to-one: Token (via tokenAddress)
-
-### 4. Leaderboard Cache Table (`leaderboard_cache`)
-**Purpose:** Cache leaderboard calculations for performance optimization
+### 3. token_transfers
+**Purpose**: Granular token balance changes within transactions (most critical for PNL)
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| `id` | String | Primary Key, CUID | Unique cache entry identifier |
-| `walletAddress` | String | Required | Wallet address being ranked |
-| `leaderboardType` | String | Required | Type: pnl, volume |
-| `timeframe` | String | Required | Period: 1h, 1d, 7d, 30d |
-| `ecosystem` | String | Required | Ecosystem: all, pump.fun, letsbonk.fun |
-| `rank` | Int | Required | Ranking position |
-| `metric` | Float | Required | PNL or Volume in SOL |
-| `calculatedAt` | DateTime | Auto-generated | Calculation timestamp |
-| `expiresAt` | DateTime | Required | Cache expiration time |
+| id | String | PRIMARY KEY | Unique identifier |
+| transactionSignature | String | FK to transactions.signature | Links to parent transaction |
+| walletAddress | String | FK to wallets.address | Wallet affected |
+| tokenMintAddress | String | | Token mint address |
+| amountChangeRaw | String | NOT NULL | Raw amount change (+ receive, - send) |
+| preBalanceRaw | String | NOT NULL | Balance before transaction |
+| postBalanceRaw | String | NOT NULL | Balance after transaction |
+| tokenSymbol | String | NULLABLE | Cached token symbol |
+| tokenName | String | NULLABLE | Cached token name |
+| tokenDecimals | Int | NULLABLE | Cached token decimals |
 
-**Unique Constraints:**
-- `walletAddress + leaderboardType + timeframe + ecosystem`
+**Key Features**:
+- **Atomic representation**: Single swap = two rows (one negative, one positive)
+- **Self-contained**: Includes cached token metadata to avoid external lookups
+- **PostgreSQL triggers**: NOTIFY on insert for real-time WebSocket updates
 
-### 5. Subscriptions Table (`subscriptions`)
-**Purpose:** Manage user subscription payments and status
-
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `id` | String | Primary Key, CUID | Unique subscription identifier |
-| `userId` | String | Required, Foreign Key | User identifier |
-| `tier` | String | Required | Subscription tier: free, degen, market_maker |
-| `status` | String | Required | Status: active, inactive, expired |
-| `solAmount` | Float | Optional | Amount paid in SOL |
-| `signature` | String | Optional | Solana transaction signature |
-| `startDate` | DateTime | Auto-generated | Subscription start date |
-| `endDate` | DateTime | Optional | Subscription end date |
-| `createdAt` | DateTime | Auto-generated | Record creation timestamp |
-
-**Relationships:**
-- Many-to-one: User (via userId)
-
-### 6. Notification Preferences Table (`notification_preferences`)
-**Purpose:** Store user notification settings and watched wallets
+### 4. positions
+**Purpose**: Current wallet holdings and weighted average cost basis
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| `id` | String | Primary Key, CUID | Unique preference identifier |
-| `userId` | String | Required, Foreign Key | User identifier |
-| `walletAddress` | String | Required | Wallet address to watch |
-| `minSolAmount` | Float | Default: 0.01 | Minimum SOL amount for notifications |
-| `minMarketCap` | Float | Optional | Minimum market cap filter |
-| `maxMarketCap` | Float | Optional | Maximum market cap filter |
-| `enabled` | Boolean | Default: true | Whether notifications are enabled |
-| `createdAt` | DateTime | Auto-generated | Record creation timestamp |
-| `updatedAt` | DateTime | Auto-updated | Record last update timestamp |
+| id | String | PRIMARY KEY | Unique identifier |
+| walletAddress | String | FK to wallets.address | Wallet owner |
+| tokenMintAddress | String | | Token mint address |
+| currentBalanceRaw | String | NOT NULL | Current token quantity in raw units |
+| totalCostBasisUsd | Float | NOT NULL | Total USD cost of current holdings |
+| weightedAvgCostUsd | Float | NOT NULL | Average cost per token unit |
+| lastUpdatedAt | DateTime | DEFAULT now() | Last update timestamp |
 
-**Relationships:**
-- Many-to-one: User (via userId)
+**Key Features**:
+- **Real-time updates**: Updated on every trade by ingestion service
+- **Weighted Average Cost**: Basis for accurate PNL calculations
+- **Performance critical**: Powers real-time portfolio views
 
-### 7. Notification History Table (`notification_history`)
-**Purpose:** Track sent notifications for analytics and debugging
-
-| Field | Type | Constraints | Description |
-|-------|------|-------------|-------------|
-| `id` | String | Primary Key, CUID | Unique notification identifier |
-| `userId` | String | Required | User identifier |
-| `walletAddress` | String | Required | Wallet that triggered notification |
-| `tradeId` | String | Required | Reference to the trade |
-| `message` | String | Required | Notification message content |
-| `sent` | Boolean | Default: false | Whether notification was sent |
-| `sentAt` | DateTime | Optional | Notification send timestamp |
-| `createdAt` | DateTime | Auto-generated | Record creation timestamp |
-
-### 8. Token Holdings Table (`token_holdings`)
-**Purpose:** Store wallet token holdings for gems discovery
+### 5. pnl_snapshots
+**Purpose**: Pre-calculated PNL aggregates for high-performance leaderboards
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| `id` | String | Primary Key, CUID | Unique holding identifier |
-| `tokenAddress` | String | Required, Foreign Key | Token contract address |
-| `walletAddress` | String | Required | Wallet address |
-| `amount` | Float | Required | Token amount held |
-| `valueSol` | Float | Required | Value in SOL |
-| `lastUpdated` | DateTime | Auto-generated | Last update timestamp |
+| id | String | PRIMARY KEY | Unique identifier |
+| walletAddress | String | FK to wallets.address | Wallet being measured |
+| period | String | NOT NULL | Time window ('1D', '7D', '30D') |
+| snapshotTimestamp | DateTime | DEFAULT now() | Snapshot generation time |
+| realizedPnlUsd | Float | NOT NULL | Total realized P&L in USD |
+| roiPercentage | Float | NULLABLE | Return on Investment percentage |
+| winRate | Float | NULLABLE | Percentage of profitable trades |
+| totalTrades | Int | NOT NULL | Total number of trades |
 
-**Unique Constraints:**
-- `tokenAddress + walletAddress`
+**Key Features**:
+- **Background job populated**: Every 15 minutes by analytics service
+- **Sub-second queries**: Leaderboard API becomes simple SELECT with ORDER BY
+- **Multiple timeframes**: Supports 1D, 7D, and 30D leaderboards
 
-**Relationships:**
-- Many-to-one: Token (via tokenAddress)
+## Supporting Tables
 
-## Subscription Tiers
+### 6. realized_pnl_events
+**Purpose**: Detailed tracking of individual trade P&L for audit and analysis
 
-### Free Tier
-- Basic leaderboard access
-- Limited notification preferences
-- No real-time alerts
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | String | PRIMARY KEY | Unique identifier |
+| walletAddress | String | | Wallet that made the trade |
+| transactionSignature | String | | Reference to closing transaction |
+| tokenMintAddress | String | | Token that was sold |
+| quantitySold | String | | Amount sold in raw units |
+| saleValueUsd | Float | | Total USD value of sale |
+| costBasisUsd | Float | | Original cost basis |
+| realizedPnlUsd | Float | | Calculated P&L |
 
-### Degen Tier ($5/month in SOL)
-- Advanced filtering options
-- Real-time notifications
-- Priority support
+### 7. gems_feed
+**Purpose**: Discovered "gem" tokens showing alpha trader activity
 
-### Market Maker Tier ($25/month in SOL)
-- All features
-- Custom notification rules
-- API access
-- Advanced analytics
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | String | PRIMARY KEY | Unique identifier |
+| tokenMintAddress | String | | Token discovered as gem |
+| tokenSymbol | String | NULLABLE | Cached token symbol |
+| tokenName | String | NULLABLE | Cached token name |
+| numAlphaBuyers | Int | | Number of famous traders buying |
+| buyerNames | String | | JSON array of buyer names |
+| firstSeenAt | DateTime | DEFAULT now() | Discovery timestamp |
+| confidence | Float | | Confidence score for gem signal |
+| isActive | Boolean | DEFAULT TRUE | Active gem flag |
 
-## Indexing Strategy
+### 8. leaderboard_cache
+**Purpose**: Performance optimization for leaderboard queries
 
-### Primary Indexes
-- `users.walletAddress` - Unique index for wallet lookups
-- `users.twitterHandle` - Unique index for Twitter integration
-- `trades.signature` - Unique index for transaction deduplication
-- `leaderboard_cache.walletAddress + leaderboardType + timeframe + ecosystem` - Composite unique index
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | String | PRIMARY KEY | Unique identifier |
+| walletAddress | String | | Wallet address |
+| leaderboardType | String | | pnl, volume |
+| timeframe | String | | 1h, 1d, 7d, 30d |
+| ecosystem | String | | all, pump.fun, letsbonk.fun |
+| rank | Int | | Leaderboard ranking |
+| metric | Float | | PNL or Volume in USD |
+| calculatedAt | DateTime | DEFAULT now() | Calculation timestamp |
+| expiresAt | DateTime | | Cache expiration |
 
-### Performance Indexes
-- `trades.walletAddress` - For user trade history
-- `trades.timestamp` - For time-based queries
-- `leaderboard_cache.expiresAt` - For cache cleanup
-- `tokens.ecosystem` - For ecosystem filtering
+## PNL Calculation Engine
+
+### Weighted Average Cost (WAC) Methodology
+The system uses WAC for cost basis calculation:
+
+```
+WAC_per_token = Total_Cost_of_Acquisition_USD / Total_Quantity_of_Token_Held
+```
+
+### PNL Calculation Algorithm
+1. **Identify Swap**: Analyze token_transfers for transaction signature
+2. **Determine Trade Value**: 
+   - Stablecoin case: Use par value
+   - Non-stablecoin: Query external price oracle (Pyth/Birdeye)
+3. **Process Buy Leg**: Update positions table with new cost basis
+4. **Process Sell Leg**: Calculate realized PNL and update positions
+5. **Record Event**: Store in realized_pnl_events table
+
+### Real-time Leaderboard Updates
+- **Background Analytics Job**: Runs every 15 minutes
+- **Aggregation Logic**: SUM(realized_pnl_usd) from realized_pnl_events
+- **Win Rate Calculation**: Profitable disposals / Total disposals
+- **Snapshot Storage**: Results stored in pnl_snapshots table
+
+## Data Source Integration
+
+### Phase 1: Dune Analytics Bootstrap
+- **Historical Backfill**: One-time import of historical PNL data
+- **Wallet Discovery**: Identify profitable wallets from Dune queries
+- **Data Mapping**: Transform Dune results to fit schema
+
+### Phase 2: Chainstack Geyser RPC
+- **Real-time Ingestion**: Yellowstone gRPC streaming
+- **Subscription Filters**: Program IDs (Jupiter, Orca) and wallet addresses
+- **Data Enrichment**: preTokenBalances and postTokenBalances analysis
+- **Automatic Failover**: Multiple geographic regions for reliability
+
+## Performance Optimization
+
+### Indexing Strategy
+- **Primary Keys**: All tables have optimized primary keys
+- **Boolean Flags**: isFamousTrader and isLeaderboardUser indexed
+- **Time-based Queries**: blockTime indexed for TimescaleDB partitioning
+- **Composite Indexes**: (walletAddress, tokenMintAddress) for positions
+
+### Caching Strategy
+- **Token Metadata**: Cached in token_transfers to avoid external lookups
+- **Leaderboard Results**: Pre-calculated in pnl_snapshots
+- **Expiration Logic**: TTL-based cache invalidation
+
+### Event-Driven Architecture
+- **PostgreSQL Triggers**: NOTIFY on token_transfers INSERT
+- **WebSocket Integration**: LISTEN for real-time updates
+- **Decoupled Services**: Database as central event source
 
 ## Migration Strategy
 
-### Development
-- SQLite for local development
-- Prisma migrations for schema changes
-- Seed data for testing
+### Development to Production
+1. **Schema Evolution**: Prisma migrations for schema changes
+2. **Data Validation**: Checksums and consistency checks
+3. **Zero-Downtime Deployment**: Blue-green deployment strategy
+4. **Rollback Procedures**: Automated rollback on validation failure
 
-### Production
-- PostgreSQL for production
-- Automated migrations via CI/CD
-- Database backups and replication
-
-## Data Retention Policy
-
-### User Data
-- User profiles: Indefinite (until deletion request)
-- Trades: 2 years for analytics
-- Notifications: 90 days for debugging
-
-### Cache Data
-- Leaderboard cache: 24 hours TTL
-- Token holdings: 1 hour TTL
+### Scaling Considerations
+- **TimescaleDB**: Automatic time-based partitioning
+- **Read Replicas**: Separate read/write workloads
+- **Horizontal Scaling**: Microservices architecture support
+- **Archive Strategy**: Historical data archival policies
 
 ## Security Considerations
 
-### Data Protection
-- Wallet addresses are public data
-- Twitter information follows platform ToS
-- No private keys stored
-- All sensitive operations logged
+### Data Privacy
+- **Wallet Anonymization**: Optional anonymous tracking
+- **Metadata Encryption**: Sensitive data encryption at rest
+- **Access Control**: Role-based database access
 
-### Access Control
-- API rate limiting
-- Subscription tier validation
-- User data isolation
+### Data Integrity
+- **Constraint Validation**: Foreign key constraints enforced
+- **Audit Trails**: All changes logged with timestamps
+- **Backup Strategy**: Point-in-time recovery capabilities
 
-## API Endpoints Related to Schema
+## API Endpoint Alignment
 
-### User Management
-- `GET /api/v1/users/:walletAddress` - Get user profile
-- `POST /api/v1/users` - Create/update user profile
-- `PUT /api/v1/users/:id/twitter` - Link Twitter account
+### Leaderboard Endpoints
+- `GET /api/v1/leaderboard?period=7d` → pnl_snapshots query
+- `GET /api/v1/leaderboard/volume?period=1d` → leaderboard_cache query
 
-### Leaderboards
-- `GET /api/v1/leaderboard` - Get cached leaderboard data
-- `POST /api/v1/leaderboard/refresh` - Trigger cache refresh
+### Live Data Endpoints
+- `WebSocket /live-trades` → token_transfers NOTIFY/LISTEN
+- `GET /api/v1/wallets/{address}/positions` → positions query
+- `GET /api/v1/gems` → gems_feed query
 
-### Notifications
-- `GET /api/v1/notifications/preferences` - Get user preferences
-- `POST /api/v1/notifications/preferences` - Update preferences
-- `GET /api/v1/notifications/history` - Get notification history
+### Analytics Endpoints
+- `GET /api/v1/analytics/pnl/{address}` → realized_pnl_events query
+- `GET /api/v1/analytics/performance/{address}` → pnl_snapshots query
 
-### Subscriptions
-- `POST /api/v1/subscriptions/payment` - Process subscription payment
-- `GET /api/v1/subscriptions/status` - Check subscription status
+## Monitoring and Maintenance
 
-## Change Log
+### Database Health
+- **Connection Monitoring**: Active connection tracking
+- **Query Performance**: Slow query identification
+- **Storage Monitoring**: Disk usage and growth tracking
 
-### Version 1.2.0 (2025-07-12)
-- Added Twitter integration fields to User model
-- Enhanced user profile with social proof data
-- Added comprehensive documentation
+### Data Quality
+- **Consistency Checks**: Regular data validation jobs
+- **Gap Detection**: Missing data identification
+- **Anomaly Detection**: Unusual pattern identification
 
-### Version 1.1.0 (2025-07-10)
-- Initial schema with core tables
-- Basic subscription and notification support
-- Leaderboard caching system
+---
 
-### Version 1.0.0 (2025-07-08)
-- Initial database schema
-- Basic user and trade tracking 
+**Note**: This schema is designed to support the Alpha-Seeker platform's core mission of providing actionable trading intelligence through real-time data analysis and accurate PNL calculations. The architecture supports both the initial Dune Analytics bootstrap phase and the long-term Chainstack Geyser RPC integration for maximum performance and scalability. 

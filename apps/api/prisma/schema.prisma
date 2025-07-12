@@ -10,83 +10,126 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id               String   @id @default(cuid())
-  walletAddress    String   @unique
-  twitterHandle    String?  @unique // Twitter username without @, e.g., "elonmusk"
-  twitterId        String?  @unique // Twitter user ID for API consistency
-  displayName      String?  // Display name for UI
-  avatar           String?  // Profile picture URL
-  bio              String?  // User bio/description
-  subscriptionTier String   @default("free") // free, degen, market_maker
-  isVerified       Boolean  @default(false) // Twitter verified status
-  followerCount    Int?     // Twitter follower count for social proof
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+// Core table for tracking wallet addresses and their metadata
+model Wallet {
+  id              String   @id @default(cuid())
+  address         String   @unique // Base-58 encoded wallet address
+  curatedName     String?  // Human-readable name (e.g., "Ansem", "Cobie")
+  twitterHandle   String?  // Twitter username without @
+  displayName     String?  // Display name for UI
+  isFamousTrader  Boolean  @default(false) // Flag for "Gems" discovery feature
+  isLeaderboardUser Boolean @default(true) // Include in leaderboard calculations
+  firstSeenAt     DateTime @default(now())
+  metadataJson    String?  // JSON field for additional unstructured data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relations
-  subscriptions           Subscription[]
-  notificationPreferences NotificationPreference[]
-  trades                  Trade[]
+  transactions    Transaction[]
+  tokenTransfers  TokenTransfer[]
+  positions       Position[]
+  pnlSnapshots    PnlSnapshot[]
+  subscriptions   Subscription[]
+  notifications   NotificationPreference[]
 
-  @@map("users")
+  @@map("wallets")
 }
 
-model Token {
-  address    String  @id
-  symbol     String
-  name       String
-  decimals   Int
-  ecosystem  String // all, pump.fun, letsbonk.fun
-  marketCap  Float?
-  price      Float?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  // Relations
-  trades    Trade[]
-  holdings  TokenHolding[]
-
-  @@map("tokens")
-}
-
-model Trade {
-  id            String   @id @default(cuid())
-  signature     String   @unique
-  walletAddress String
-  tokenAddress  String
-  action        String   // buy, sell
-  amountSol     Float
-  amountToken   Float
-  price         Float
-  timestamp     DateTime
-  createdAt     DateTime @default(now())
-
-  // Relations
-  user  User  @relation(fields: [walletAddress], references: [walletAddress])
-  token Token @relation(fields: [tokenAddress], references: [address])
-
-  @@map("trades")
-}
-
-model LeaderboardCache {
+// Time-series fact table for transaction events
+model Transaction {
   id           String   @id @default(cuid())
-  walletAddress String
-  leaderboardType String // pnl, volume
-  timeframe    String   // 1h, 1d, 7d, 30d
-  ecosystem    String   // all, pump.fun, letsbonk.fun
-  rank         Int
-  metric       Float    // PNL or Volume in SOL
-  calculatedAt DateTime @default(now())
-  expiresAt    DateTime
+  signature    String   @unique // Base-58 transaction signature
+  blockTime    DateTime // Confirmed timestamp
+  slot         BigInt   // Block slot number
+  signerAddress String  // Primary fee-paying account
+  feeLamports  BigInt   // Transaction fee in lamports
+  wasSuccessful Boolean @default(true)
+  createdAt    DateTime @default(now())
+
+  // Relations
+  wallet         Wallet          @relation(fields: [signerAddress], references: [address])
+  tokenTransfers TokenTransfer[]
+
+  @@map("transactions")
+}
+
+// Granular token balance changes within transactions
+model TokenTransfer {
+  id                    String   @id @default(cuid())
+  transactionSignature String   // Links to parent transaction
+  walletAddress         String   // Wallet affected
+  tokenMintAddress      String   // Token mint address
+  amountChangeRaw       String   // Raw amount change (positive = receive, negative = send)
+  preBalanceRaw         String   // Balance before transaction
+  postBalanceRaw        String   // Balance after transaction
+  tokenSymbol           String?  // Cached token symbol
+  tokenName             String?  // Cached token name
+  tokenDecimals         Int?     // Cached token decimals
+  createdAt             DateTime @default(now())
+
+  // Relations
+  transaction Transaction @relation(fields: [transactionSignature], references: [signature])
+  wallet      Wallet      @relation(fields: [walletAddress], references: [address])
+
+  @@map("token_transfers")
+}
+
+// Current wallet holdings and cost basis
+model Position {
+  id                   String   @id @default(cuid())
+  walletAddress        String   
+  tokenMintAddress     String   
+  currentBalanceRaw    String   // Current token quantity in raw units
+  totalCostBasisUsd    Float    // Total USD cost of current holdings
+  weightedAvgCostUsd   Float    // Average cost per token unit
+  lastUpdatedAt        DateTime @default(now())
+
+  // Relations
+  wallet Wallet @relation(fields: [walletAddress], references: [address])
+
+  @@unique([walletAddress, tokenMintAddress])
+  @@map("positions")
+}
+
+// Pre-calculated PNL aggregates for leaderboards
+model PnlSnapshot {
+  id                  String   @id @default(cuid())
+  walletAddress       String   
+  period              String   // '1D', '7D', '30D'
+  snapshotTimestamp   DateTime @default(now())
+  realizedPnlUsd      Float    // Total realized P&L in USD
+  roiPercentage       Float?   // Return on Investment percentage
+  winRate             Float?   // Percentage of profitable trades
+  totalTrades         Int      // Total number of trades
+  createdAt           DateTime @default(now())
+
+  // Relations
+  wallet Wallet @relation(fields: [walletAddress], references: [address])
+
+  @@unique([walletAddress, period, snapshotTimestamp])
+  @@map("pnl_snapshots")
+}
+
+// Leaderboard cache for performance optimization
+model LeaderboardCache {
+  id              String   @id @default(cuid())
+  walletAddress   String
+  leaderboardType String   // pnl, volume
+  timeframe       String   // 1h, 1d, 7d, 30d
+  ecosystem       String   // all, pump.fun, letsbonk.fun
+  rank            Int
+  metric          Float    // PNL or Volume in USD
+  calculatedAt    DateTime @default(now())
+  expiresAt       DateTime
 
   @@unique([walletAddress, leaderboardType, timeframe, ecosystem])
   @@map("leaderboard_cache")
 }
 
+// Subscription management
 model Subscription {
   id        String   @id @default(cuid())
-  userId    String
+  walletId  String
   tier      String   // free, degen, market_maker
   status    String   // active, inactive, expired
   solAmount Float?   // Amount paid in SOL
@@ -96,15 +139,16 @@ model Subscription {
   createdAt DateTime @default(now())
 
   // Relations
-  user User @relation(fields: [userId], references: [id])
+  wallet Wallet @relation(fields: [walletId], references: [id])
 
   @@map("subscriptions")
 }
 
+// Notification preferences
 model NotificationPreference {
   id            String   @id @default(cuid())
-  userId        String
-  walletAddress String   // Wallet to watch
+  walletId      String
+  targetAddress String   // Wallet to watch
   minSolAmount  Float    @default(0.01)
   minMarketCap  Float?
   maxMarketCap  Float?
@@ -113,16 +157,17 @@ model NotificationPreference {
   updatedAt     DateTime @updatedAt
 
   // Relations
-  user User @relation(fields: [userId], references: [id])
+  wallet Wallet @relation(fields: [walletId], references: [id])
 
   @@map("notification_preferences")
 }
 
+// Notification history tracking
 model NotificationHistory {
   id            String   @id @default(cuid())
-  userId        String
-  walletAddress String   // Wallet that triggered the notification
-  tradeId       String   // Reference to the trade
+  walletId      String
+  targetAddress String   // Wallet that triggered notification
+  tradeSignature String  // Reference to the transaction
   message       String
   sent          Boolean  @default(false)
   sentAt        DateTime?
@@ -131,17 +176,32 @@ model NotificationHistory {
   @@map("notification_history")
 }
 
-model TokenHolding {
-  id            String   @id @default(cuid())
-  tokenAddress  String
-  walletAddress String
-  amount        Float
-  valueSol      Float
-  lastUpdated   DateTime @default(now())
+// Gems discovery feed
+model GemsFeed {
+  id              String   @id @default(cuid())
+  tokenMintAddress String  // Token discovered as a "gem"
+  tokenSymbol     String?  // Cached token symbol
+  tokenName       String?  // Cached token name
+  numAlphaBuyers  Int      // Number of famous traders buying
+  buyerNames      String   // JSON array of buyer names
+  firstSeenAt     DateTime @default(now())
+  confidence      Float    // Confidence score for the gem signal
+  isActive        Boolean  @default(true)
 
-  // Relations
-  token Token @relation(fields: [tokenAddress], references: [address])
+  @@map("gems_feed")
+}
 
-  @@unique([tokenAddress, walletAddress])
-  @@map("token_holdings")
+// Realized PNL events for detailed tracking
+model RealizedPnlEvent {
+  id                   String   @id @default(cuid())
+  walletAddress        String
+  transactionSignature String   // Reference to the closing transaction
+  tokenMintAddress     String   // Token that was sold
+  quantitySold         String   // Amount sold in raw units
+  saleValueUsd         Float    // Total USD value of the sale
+  costBasisUsd         Float    // Original cost basis
+  realizedPnlUsd       Float    // Calculated P&L
+  createdAt            DateTime @default(now())
+
+  @@map("realized_pnl_events")
 } 
