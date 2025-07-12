@@ -84,7 +84,7 @@ A high-performance backend built with Node.js and Fastify.
 Contains TypeScript interfaces and types shared between the mobile app and the backend API to ensure type safety across the stack.
 
 ### 3.2 UI Kit (/packages/ui)
-Contains reusable, generic UI components built with Tamagui that can be used across the mobile app and potentially a future web app.
+Contains reusable, generic UI components built with React Native Paper that can be used across the mobile app and potentially a future web app.
 
 ## 4. File Naming Conventions
 

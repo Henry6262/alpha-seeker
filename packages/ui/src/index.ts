@@ -1,5 +1,5 @@
 // UI components will be implemented during Sprint 2
-// TODO: Create Tamagui components for Alpha Seeker
+// TODO: Create React Native Paper components for Alpha Seeker
 
 // Placeholder export to make package valid
 export const UI_PACKAGE_VERSION = '1.0.0'
@@ -9,5 +9,5 @@ export const UI_PACKAGE_VERSION = '1.0.0'
 // export * from './components/Card'
 // export * from './components/Text'
 // export * from './components/View'
-// export * from './config/tamagui.config'
+// export * from './config/paper.config'
 // export * from './theme/tokens' 
