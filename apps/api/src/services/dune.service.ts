@@ -19,6 +19,19 @@ interface DuneResponse {
   }
 }
 
+// Updated interface for the actual Dune query results
+interface DuneBonkTraderData {
+  rank: string // "🏆 1", "🏆 2", etc.
+  wallet: string
+  total_realized_profit_usd: number
+  total_realized_profit_sol: number
+  total_trades: number
+  bonk_launchpad_trades: number
+  raydium_trades: number
+  unique_tokens_traded: number
+}
+
+// Legacy interface for compatibility
 interface DuneTraderData {
   wallet_address: string
   realized_pnl_usd: number
@@ -41,14 +54,16 @@ interface DuneWalletMetadata {
 export class DuneService {
   private apiKey: string
   private baseUrl = 'https://api.dune.com/api/v1'
-  
-  // Dune query IDs for Solana trading data
+
+  // Updated to use your actual query ID
   private readonly QUERIES = {
-    PROFITABLE_TRADERS_7D: 3875234,  // Top profitable traders last 7 days
-    PROFITABLE_TRADERS_30D: 3875235, // Top profitable traders last 30 days
-    TRADER_DETAILED_PNL: 3875236,    // Detailed PNL for specific wallets
-    DEX_TRADING_VOLUME: 3875237,     // Trading volume analysis
-    WALLET_DISCOVERY: 3875238,       // Discover new profitable wallets
+    BONK_LAUNCHPAD_TRADERS: 5444732,  // Your custom bonk launchpad query
+    // Legacy query IDs for compatibility
+    PROFITABLE_TRADERS_7D: 3875234,
+    PROFITABLE_TRADERS_30D: 3875235,
+    TRADER_DETAILED_PNL: 3875236,
+    DEX_TRADING_VOLUME: 3875237,
+    WALLET_DISCOVERY: 3875238,
   }
 
   constructor() {
@@ -77,6 +92,11 @@ export class DuneService {
     }
 
     return response.json()
+  }
+
+  async getLatestQueryResults(queryId: number): Promise<DuneResponse> {
+    console.log(`📊 Getting latest results for query ${queryId}...`)
+    return this.makeRequest(`/query/${queryId}/results`)
   }
 
   async executeQuery(query: DuneQuery): Promise<DuneResponse> {
@@ -210,7 +230,7 @@ export class DuneService {
   }
 
   private async importPNLData(period: '7D' | '30D', queryId: number): Promise<number> {
-    console.log(`📊 Importing ${period} PNL data...`)
+    console.log(`📊 Importing ${period} PNL data from Dune...`)
     
     const execution = await this.executeQuery({
       query_id: queryId,
@@ -229,12 +249,15 @@ export class DuneService {
     const traderData = result.result.rows as DuneTraderData[]
     console.log(`📈 Processing ${traderData.length} traders for ${period}`)
 
-    // Clear existing snapshots for this period
+    // Clear existing DUNE snapshots for this period (preserve geyser data)
     await prisma.pnlSnapshot.deleteMany({
-      where: { period }
+      where: { 
+        period,
+        dataSource: 'dune'
+      }
     })
 
-    // Insert new PNL snapshots
+    // Insert new PNL snapshots with source tracking
     const snapshots = traderData.map(trader => ({
       walletAddress: trader.wallet_address,
       period,
@@ -242,13 +265,21 @@ export class DuneService {
       realizedPnlUsd: trader.realized_pnl_usd,
       roiPercentage: trader.realized_pnl_usd > 0 ? (trader.realized_pnl_usd / trader.total_volume_usd) * 100 : 0,
       winRate: trader.win_rate,
-      totalTrades: trader.total_trades
+      totalTrades: trader.total_trades,
+      dataSource: 'dune' as const,
+      sourceMetadata: JSON.stringify({
+        queryId,
+        executionId: execution.execution_id,
+        importedAt: new Date().toISOString(),
+        duneRowIndex: traderData.indexOf(trader)
+      })
     }))
 
     await prisma.pnlSnapshot.createMany({
       data: snapshots
     })
 
+    console.log(`✅ Imported ${snapshots.length} PNL snapshots from Dune (${period})`)
     return snapshots.length
   }
 
@@ -345,7 +376,7 @@ export class DuneService {
    */
   async refreshLeaderboard(
     type: 'pnl' | 'volume',
-    timeframe: '1h' | '1d' | '7d' | '30d' = '1d',
+    timeframe: '1d' | '7d' | '30d' = '1d',
     ecosystem: 'all' | 'pump.fun' | 'letsbonk.fun' = 'all'
   ): Promise<void> {
     try {
@@ -367,18 +398,36 @@ export class DuneService {
   private async refreshFromPnlSnapshots(timeframe: '7d' | '30d', ecosystem: string): Promise<void> {
     const period = timeframe === '7d' ? '7D' : '30D'
     
-    // Get latest PNL snapshots
+    // Get latest PNL snapshots, prioritizing Geyser data over Dune
     const snapshots = await prisma.pnlSnapshot.findMany({
       where: { period },
       include: { wallet: true },
-      orderBy: { realizedPnlUsd: 'desc' },
-      take: 100
+      orderBy: [
+        { realizedPnlUsd: 'desc' },
+        { dataSource: 'desc' } // 'geyser' comes before 'dune' alphabetically
+      ],
+      take: 200 // Get more to handle deduplication
     })
 
     if (snapshots.length === 0) {
       console.log(`No PNL snapshots found for ${period}, using mock data`)
       return this.refreshWithMockData('pnl', timeframe, ecosystem)
     }
+
+    // Deduplicate by wallet address, keeping the highest priority data source
+    const deduplicatedSnapshots = new Map<string, typeof snapshots[0]>()
+    for (const snapshot of snapshots) {
+      const existing = deduplicatedSnapshots.get(snapshot.walletAddress)
+      if (!existing || 
+          (existing.dataSource === 'dune' && snapshot.dataSource === 'geyser') ||
+          (existing.dataSource === snapshot.dataSource && snapshot.realizedPnlUsd > existing.realizedPnlUsd)) {
+        deduplicatedSnapshots.set(snapshot.walletAddress, snapshot)
+      }
+    }
+
+    const finalSnapshots = Array.from(deduplicatedSnapshots.values())
+      .sort((a, b) => b.realizedPnlUsd - a.realizedPnlUsd)
+      .slice(0, 100) // Top 100 for leaderboard
 
     // Clear existing cache
     await prisma.leaderboardCache.deleteMany({
@@ -390,21 +439,25 @@ export class DuneService {
     })
 
     // Insert new leaderboard data from snapshots
-    const leaderboardEntries = snapshots.map((snapshot, index) => ({
+    const leaderboardEntries = finalSnapshots.map((snapshot, index) => ({
       walletAddress: snapshot.walletAddress,
       leaderboardType: 'pnl' as const,
       timeframe,
       ecosystem,
       rank: index + 1,
       metric: snapshot.realizedPnlUsd,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // Expire in 15 minutes
+      calculatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
     }))
 
     await prisma.leaderboardCache.createMany({
-      data: leaderboardEntries,
+      data: leaderboardEntries
     })
 
-    console.log(`✅ Refreshed PNL leaderboard from snapshots: ${leaderboardEntries.length} entries`)
+    const duneCount = finalSnapshots.filter(s => s.dataSource === 'dune').length
+    const geyserCount = finalSnapshots.filter(s => s.dataSource === 'geyser').length
+    
+    console.log(`✅ Refreshed ${timeframe} PNL leaderboard: ${finalSnapshots.length} entries (${geyserCount} geyser, ${duneCount} dune)`)
   }
 
   private async refreshWithMockData(type: string, timeframe: string, ecosystem: string): Promise<void> {
@@ -459,24 +512,156 @@ export class DuneService {
     }
   }
 
-  // Method to refresh all leaderboard combinations
+  /**
+   * Refresh all leaderboards - optimized for daily execution
+   */
   async refreshAllLeaderboards(): Promise<void> {
-    const types: ('pnl' | 'volume')[] = ['pnl', 'volume']
-    const timeframes: ('1h' | '1d' | '7d' | '30d')[] = ['1h', '1d', '7d', '30d']
+    console.log('🔄 Starting optimized daily leaderboard refresh...')
+    
+    const timeframes: ('1d' | '7d' | '30d')[] = ['1d', '7d', '30d']
     const ecosystems: ('all' | 'pump.fun' | 'letsbonk.fun')[] = ['all', 'pump.fun', 'letsbonk.fun']
-
+    const types: ('pnl' | 'volume')[] = ['pnl', 'volume']
+    
     for (const type of types) {
       for (const timeframe of timeframes) {
         for (const ecosystem of ecosystems) {
-          try {
-            await this.refreshLeaderboard(type, timeframe, ecosystem)
-            // Add small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100))
-          } catch (error) {
-            console.error(`Failed to refresh ${type}/${timeframe}/${ecosystem}:`, error)
-          }
+          await this.refreshLeaderboard(type, timeframe, ecosystem)
         }
       }
+    }
+    
+    console.log('✅ Daily leaderboard refresh completed successfully')
+  }
+
+  /**
+   * Execute the bonk launchpad query for a specific time period
+   */
+  async queryBonkLaunchpadTraders(timeframe: '1d' | '7d' | '30d'): Promise<DuneBonkTraderData[]> {
+    console.log(`🚀 Querying bonk launchpad traders for ${timeframe}...`)
+    
+    // Map our timeframe to Dune query filter parameter
+    const filterMapping = {
+      '1d': '1 day',
+      '7d': '7 days',
+      '30d': '30 days'
+    }
+    
+    const result = await this.getLatestQueryResults(this.QUERIES.BONK_LAUNCHPAD_TRADERS)
+    
+    if (!result.result?.rows) {
+      throw new Error(`No bonk launchpad data returned for ${timeframe}`)
+    }
+
+    const traderData = result.result.rows as DuneBonkTraderData[]
+    console.log(`📊 Found ${traderData.length} bonk launchpad traders (${timeframe})`)
+    
+    return traderData
+  }
+
+  /**
+   * Import bonk launchpad data and create PNL snapshots
+   */
+  async importBonkLaunchpadData(timeframe: '1d' | '7d' | '30d'): Promise<number> {
+    console.log(`📈 Importing bonk launchpad data for ${timeframe}...`)
+    
+    const traderData = await this.queryBonkLaunchpadTraders(timeframe)
+    
+    // Map timeframe to period
+    const periodMapping = {
+      '1d': '1D', 
+      '7d': '7D',
+      '30d': '30D'
+    }
+    const period = periodMapping[timeframe]
+
+    // Clear existing DUNE snapshots for this period
+    await prisma.pnlSnapshot.deleteMany({
+      where: { 
+        period,
+        dataSource: 'dune'
+      }
+    })
+
+    // Create wallet entries for new traders
+    const walletUpserts = traderData.map(trader => 
+      prisma.wallet.upsert({
+        where: { address: trader.wallet },
+        update: {
+          isLeaderboardUser: true,
+          metadataJson: JSON.stringify({
+            lastDuneUpdate: new Date().toISOString(),
+            bonkLaunchpadTrader: true
+          })
+        },
+        create: {
+          address: trader.wallet,
+          isLeaderboardUser: true,
+          isFamousTrader: false,
+          firstSeenAt: new Date(),
+          metadataJson: JSON.stringify({
+            discoveredAt: new Date().toISOString(),
+            bonkLaunchpadTrader: true,
+            source: 'dune_bonk_query'
+          })
+        }
+      })
+    )
+
+    await Promise.all(walletUpserts)
+
+    // Create PNL snapshots
+    const snapshots = traderData.map(trader => ({
+      walletAddress: trader.wallet,
+      period,
+      snapshotTimestamp: new Date(),
+      realizedPnlUsd: trader.total_realized_profit_usd,
+      roiPercentage: null, // Not provided by the query
+      winRate: null, // Not provided by the query
+      totalTrades: trader.total_trades,
+      dataSource: 'dune' as const,
+      sourceMetadata: JSON.stringify({
+        rank: trader.rank,
+        bonkLaunchpadTrades: trader.bonk_launchpad_trades,
+        raydiumTrades: trader.raydium_trades,
+        uniqueTokensTraded: trader.unique_tokens_traded,
+        totalRealizedProfitSol: trader.total_realized_profit_sol,
+        queryId: this.QUERIES.BONK_LAUNCHPAD_TRADERS,
+        importedAt: new Date().toISOString()
+      })
+    }))
+
+    await prisma.pnlSnapshot.createMany({
+      data: snapshots
+    })
+
+    console.log(`✅ Imported ${snapshots.length} bonk launchpad PNL snapshots (${timeframe})`)
+    return snapshots.length
+  }
+
+  /**
+   * Optimized bootstrap method using bonk launchpad data - runs once daily
+   */
+  async bootstrapBonkLaunchpadData(): Promise<{
+    entries_1d: number
+    entries_7d: number
+    entries_30d: number
+  }> {
+    console.log('🚀 Starting Daily Bonk Launchpad Data Bootstrap')
+    
+    try {
+      const results = await Promise.all([
+        this.importBonkLaunchpadData('1d'),
+        this.importBonkLaunchpadData('7d'),
+        this.importBonkLaunchpadData('30d')
+      ])
+
+      const [entries_1d, entries_7d, entries_30d] = results
+      console.log(`✅ Daily bonk bootstrap complete: ${entries_1d} (1D), ${entries_7d} (7D), ${entries_30d} (30D)`)
+      
+      return { entries_1d, entries_7d, entries_30d }
+    } catch (error) {
+      console.error('❌ Daily bonk launchpad bootstrap failed:', error)
+      throw error
     }
   }
 } 

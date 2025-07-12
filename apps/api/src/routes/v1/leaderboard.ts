@@ -60,23 +60,20 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
     const { address } = request.params
 
     try {
-      // Get user with their trades
-      const user = await prisma.user.findUnique({
-        where: { walletAddress: address },
+      // Get wallet with recent transactions from PNL snapshots
+      const wallet = await prisma.wallet.findUnique({
+        where: { address },
         include: {
-          trades: {
-            include: {
-              token: true
-            },
+          pnlSnapshots: {
             orderBy: {
-              timestamp: 'desc'
+              createdAt: 'desc'
             },
-            take: 50
+            take: 10
           }
         }
       })
 
-      if (!user) {
+      if (!wallet) {
         reply.status(404)
         return {
           success: false,
@@ -85,21 +82,21 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Calculate basic stats
-      const totalPnl = user.trades.reduce((sum, trade) => {
-        return sum + (trade.action === 'sell' ? trade.amountSol : -trade.amountSol)
-      }, 0)
-
-      const totalVolume = user.trades.reduce((sum, trade) => sum + trade.amountSol, 0)
+      // Get recent PNL data
+      const recentPnl = wallet.pnlSnapshots.length > 0 ? wallet.pnlSnapshots[0] : null
 
       return {
         success: true,
         data: {
-          address: user.walletAddress,
-          totalPnl,
-          totalVolume,
-          tradeCount: user.trades.length,
-          recentTrades: user.trades.slice(0, 10)
+          address: wallet.address,
+          curatedName: wallet.curatedName,
+          twitterHandle: wallet.twitterHandle,
+          isFamousTrader: wallet.isFamousTrader,
+          totalPnl: recentPnl?.realizedPnlUsd || 0,
+          roiPercentage: recentPnl?.roiPercentage || 0,
+          winRate: recentPnl?.winRate || 0,
+          totalTrades: recentPnl?.totalTrades || 0,
+          recentSnapshots: wallet.pnlSnapshots.slice(0, 5)
         },
         timestamp: new Date().toISOString()
       }

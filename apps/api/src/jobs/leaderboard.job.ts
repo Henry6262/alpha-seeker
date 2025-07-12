@@ -1,26 +1,30 @@
-import * as cron from 'node-cron'
-import { DuneService } from '../services/dune.service'
+import cron from 'node-cron'
+import { DuneService } from '../services/dune.service.js'
 
-const duneService = new DuneService()
-
-// Refresh leaderboards every 5 minutes for development (every hour in production)
-const schedule = process.env.NODE_ENV === 'production' ? '0 * * * *' : '*/5 * * * *'
-
-export function startLeaderboardJob() {
-  console.log(`🕒 Starting leaderboard refresh job with schedule: ${schedule}`)
+/**
+ * Leaderboard refresh job
+ * Runs daily at 2 AM UTC to refresh all leaderboard data
+ * Optimized to fetch data once per day for each timeframe
+ */
+export function startLeaderboardRefreshJob() {
+  const duneService = new DuneService()
   
-  cron.schedule(schedule, async () => {
-    console.log('⏰ Running leaderboard refresh job...')
+  // Run daily at 2:00 AM UTC (0 2 * * *)
+  console.log('🕒 Starting daily leaderboard refresh job scheduled for 2 AM UTC')
+  
+  cron.schedule('0 2 * * *', async () => {
+    console.log('⏰ Running daily leaderboard refresh job...')
+    
     try {
+      // First, refresh with latest Dune data
+      await duneService.bootstrapBonkLaunchpadData()
+      
+      // Then refresh all leaderboards with optimized timeframes
       await duneService.refreshAllLeaderboards()
-      console.log('✅ Leaderboard refresh job completed successfully')
+      
+      console.log('✅ Daily leaderboard refresh job completed successfully')
     } catch (error) {
-      console.error('❌ Leaderboard refresh job failed:', error)
+      console.error('❌ Daily leaderboard refresh job failed:', error)
     }
-  })
-
-  // Run once on startup
-  duneService.refreshAllLeaderboards().catch(error => {
-    console.error('❌ Initial leaderboard refresh failed:', error)
   })
 } 

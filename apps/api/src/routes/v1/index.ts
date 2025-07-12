@@ -42,6 +42,47 @@ export async function v1Routes(fastify: FastifyInstance) {
     }
   })
 
+  // New endpoint for bonk launchpad bootstrap
+  fastify.post('/bootstrap/bonk-launchpad', async (request, reply) => {
+    try {
+      const duneService = new DuneService()
+      const result = await duneService.bootstrapBonkLaunchpadData()
+      reply.code(200).send({
+        success: true,
+        message: 'Bonk launchpad bootstrap completed successfully',
+        data: result
+      })
+    } catch (error) {
+      console.error('Bonk launchpad bootstrap failed:', error)
+      reply.code(500).send({
+        success: false,
+        message: 'Bonk launchpad bootstrap failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+
+  // Test endpoint for bonk launchpad query
+  fastify.get('/bootstrap/test-bonk-query', async (request, reply) => {
+    try {
+      const duneService = new DuneService()
+      // Test with 1 day timeframe
+      const result = await duneService.queryBonkLaunchpadTraders('1d')
+      reply.code(200).send({
+        success: true,
+        message: `Found ${result.length} bonk launchpad traders`,
+        data: result.slice(0, 10) // Return first 10 for testing
+      })
+    } catch (error) {
+      console.error('Bonk launchpad query test failed:', error)
+      reply.code(500).send({
+        success: false,
+        message: 'Bonk launchpad query test failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  })
+
   // Wallet discovery endpoint - discover profitable wallets only
   fastify.post('/bootstrap/discover-wallets', async (request, reply) => {
     try {

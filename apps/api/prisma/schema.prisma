@@ -101,12 +101,14 @@ model PnlSnapshot {
   roiPercentage       Float?   // Return on Investment percentage
   winRate             Float?   // Percentage of profitable trades
   totalTrades         Int      // Total number of trades
+  dataSource          String   @default("dune") // 'dune' or 'geyser' - tracks data source
+  sourceMetadata      String?  // JSON field for source-specific metadata
   createdAt           DateTime @default(now())
 
   // Relations
   wallet Wallet @relation(fields: [walletAddress], references: [address])
 
-  @@unique([walletAddress, period, snapshotTimestamp])
+  @@unique([walletAddress, period, snapshotTimestamp, dataSource])
   @@map("pnl_snapshots")
 }
 
