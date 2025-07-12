@@ -23,8 +23,8 @@
 ### Frontend:
 - **Framework:** React Native + Expo Router - Mobile-first with file-based routing
 - **Documentation:** https://docs.solanamobile.com/react-native/quickstart
-- **UI Library:** Tamagui - Cross-platform design system
-- **Documentation:** https://tamagui.dev/
+- **UI Library:** React Native Paper - Material Design components for React Native
+- **Documentation:** https://callstack.github.io/react-native-paper/
 
 ### Backend:
 - **Framework:** Node.js + Fastify - High-performance, low overhead
@@ -52,25 +52,25 @@
 **Goal:** Establish project skeleton, get data flowing from both Dune and Geyser, and display a cached leaderboard.
 
 #### Phase 1.1: Project Scaffolding & AI Priming (Days 1-2)
-- [ ] Set up pnpm workspace monorepo structure as defined in project_structure.md
-- [ ] Initialize React Native app with Expo Router in /apps/mobile
-- [ ] Initialize Fastify backend in /apps/api
+- [x] Set up pnpm workspace monorepo structure as defined in project_structure.md
+- [x] Initialize React Native app with Expo Router in /apps/mobile
+- [x] Initialize Fastify backend in /apps/api
 - [ ] Configure Supabase project and connect backend
-- [ ] Set up shared TypeScript types in /packages/shared-types
+- [x] Set up shared TypeScript types in /packages/shared-types
 
 #### Phase 1.2: Database & Core Infrastructure (Days 3-4)  
-- [ ] Generate Supabase database schema (users, subscriptions, leaderboard_cache, notification_preferences)
-- [ ] Set up Prisma ORM with Supabase connection
-- [ ] Create initial database migrations
+- [x] Generate Supabase database schema (users, subscriptions, leaderboard_cache, notification_preferences)
+- [x] Set up Prisma ORM with Supabase connection
+- [x] Create initial database migrations
 - [ ] Implement basic Solana wallet authentication in React Native
-- [ ] Set up environment configuration for all apps
+- [x] Set up environment configuration for all apps
 
 #### Phase 1.3: Leaderboard Data Pipeline (Day 5)
-- [ ] Create Dune Analytics service at /apps/api/src/services/dune.service.ts
-- [ ] Implement PNL and Volume leaderboard queries
-- [ ] Create scheduled cron job (node-cron) to cache results every hour
-- [ ] Build /api/v1/leaderboard endpoint serving cached data
-- [ ] Test end-to-end data flow from Dune to API
+- [x] Create Dune Analytics service at /apps/api/src/services/dune.service.ts
+- [x] Implement PNL and Volume leaderboard queries
+- [x] Create scheduled cron job (node-cron) to cache results every hour
+- [x] Build /api/v1/leaderboard endpoint serving cached data
+- [x] Test end-to-end data flow from Dune to API
 
 #### Phase 1.4: Real-Time Data Pipeline (Days 6-7)
 - [ ] Create Chainstack Yellowstone Geyser service at /apps/api/src/services/geyser.service.ts
@@ -153,7 +153,7 @@
 ### Development Tools:
 - [Expo React Native Documentation](https://docs.expo.dev/)
 - [Prisma ORM Documentation](https://www.prisma.io/docs/)
-- [Tamagui UI Framework](https://tamagui.dev/docs/intro/introduction)
+- [React Native Paper Documentation](https://callstack.github.io/react-native-paper/)
 - [Zustand State Management](https://zustand-demo.pmnd.rs/)
 
 ### Best Practices:
