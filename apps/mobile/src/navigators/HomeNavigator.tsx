@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
 import { TopBar } from "../components/top-bar/top-bar-feature";
 import { HomeScreen } from "../screens/HomeScreen";
-import MaterialCommunityIcon from "@expo/vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "react-native-paper";
 import { BlankScreen } from "../screens/BlankScreen";
 
@@ -24,7 +24,7 @@ export function HomeNavigator() {
           switch (route.name) {
             case "Home":
               return (
-                <MaterialCommunityIcon
+                <MaterialCommunityIcons
                   name={focused ? "home" : "home-outline"}
                   size={size}
                   color={color}
@@ -32,7 +32,7 @@ export function HomeNavigator() {
               );
             case "Blank":
               return (
-                <MaterialCommunityIcon
+                <MaterialCommunityIcons
                   name={focused ? "application-edit" : "application-edit-outline"}
                   size={size}
                   color={color}
