@@ -14,484 +14,488 @@
 4. **Trustworthy**: Clean, professional design that instills confidence in financial decisions
 5. **Accessibility**: Inclusive design supporting various user needs and abilities
 
+## Technology Stack
+
+### UI Framework
+- **React Native Paper**: Material Design components for React Native
+- **React Native**: Cross-platform mobile development
+- **Expo**: Development platform and build tools
+- **TypeScript**: Type-safe development
+
+### Design System
+- **Material Design 3**: Modern Material Design principles
+- **Paper Theme**: Customizable theme system
+- **React Native Paper Components**: Pre-built, accessible components
+- **Consistent Spacing**: 8dp grid system following Material Design
+
 ## Color Palette
 
 ### Primary Colors
 ```scss
-$primary-green: #00FFA3;      // Success, positive PNL, gains
-$primary-blue: #3B82F6;       // Primary actions, links, navigation
-$primary-purple: #8B5CF6;     // Premium features, subscriptions
+// Primary brand colors
+$primary-blue: #2196F3;       // Primary actions, links, navigation
+$primary-green: #4CAF50;      // Success, positive PNL, gains
+$primary-purple: #9C27B0;     // Premium features, subscriptions
 ```
 
 ### Secondary Colors
 ```scss
-$secondary-red: #EF4444;      // Losses, negative PNL, warnings
-$secondary-yellow: #F59E0B;   // Neutral, pending states
-$secondary-gray: #6B7280;     // Secondary text, borders
+// Status and feedback colors
+$secondary-red: #F44336;      // Losses, negative PNL, warnings
+$secondary-orange: #FF9800;   // Neutral, pending states
+$secondary-gray: #9E9E9E;     // Secondary text, borders
 ```
 
-### Neutral Colors
+### Material Design Colors
 ```scss
-$background-dark: #0F0F0F;    // Main background (dark theme)
-$background-light: #FFFFFF;   // Main background (light theme)
-$surface-dark: #1F1F1F;       // Card backgrounds (dark)
-$surface-light: #F8FAFC;      // Card backgrounds (light)
-$text-primary: #FFFFFF;       // Primary text (dark theme)
-$text-secondary: #9CA3AF;     // Secondary text
-$border: #374151;             // Borders and dividers
+// Material Design 3 color tokens
+$surface: #FFFFFF;            // Card backgrounds (light)
+$surface-variant: #F5F5F5;    // Elevated surfaces
+$on-surface: #1C1C1C;         // Text on surface
+$on-surface-variant: #6B6B6B; // Secondary text
+$outline: #E0E0E0;            // Borders and dividers
+$primary: #2196F3;            // Primary brand color
+$on-primary: #FFFFFF;         // Text on primary
 ```
 
-### Gradient System
+### Dark Theme Support
 ```scss
-$gradient-primary: linear-gradient(135deg, $primary-blue, $primary-purple);
-$gradient-success: linear-gradient(135deg, $primary-green, #10B981);
-$gradient-warning: linear-gradient(135deg, $secondary-yellow, #F97316);
-$gradient-danger: linear-gradient(135deg, $secondary-red, #DC2626);
+// Dark theme variants
+$surface-dark: #121212;       // Card backgrounds (dark)
+$surface-variant-dark: #1E1E1E; // Elevated surfaces (dark)
+$on-surface-dark: #FFFFFF;    // Text on surface (dark)
+$on-surface-variant-dark: #AAAAAA; // Secondary text (dark)
+$outline-dark: #333333;       // Borders and dividers (dark)
 ```
 
 ## Typography
 
-### Font Families
-- **Primary**: Inter (Modern, highly legible, excellent for data)
-- **Monospace**: JetBrains Mono (Code, addresses, numbers)
-- **Display**: Inter Display (Headers, emphasis)
+### Font System
+- **Primary**: System fonts (San Francisco on iOS, Roboto on Android)
+- **Monospace**: System monospace for wallet addresses and numbers
+- **Font Scale**: Material Design typography scale
 
-### Font Scale
+### Typography Scale
 ```scss
-$font-xs: 12px;      // Captions, meta information
-$font-sm: 14px;      // Body text, secondary information
-$font-base: 16px;    // Default body text
-$font-lg: 18px;      // Emphasized text
-$font-xl: 20px;      // Small headings
-$font-2xl: 24px;     // Section headings
-$font-3xl: 32px;     // Page titles
-$font-4xl: 40px;     // Hero text, key metrics
-```
-
-### Font Weights
-- **Light**: 300 (Large numbers, display text)
-- **Regular**: 400 (Body text)
-- **Medium**: 500 (Emphasized text)
-- **Semibold**: 600 (Headings, important data)
-- **Bold**: 700 (Key metrics, alerts)
-
-## Spacing System
-
-### Base Unit: 4px
-```scss
-$space-1: 4px;       // Micro spacing
-$space-2: 8px;       // Small spacing
-$space-3: 12px;      // Default spacing
-$space-4: 16px;      // Medium spacing
-$space-5: 20px;      // Large spacing
-$space-6: 24px;      // XL spacing
-$space-8: 32px;      // XXL spacing
-$space-10: 40px;     // Section spacing
-$space-12: 48px;     // Large sections
-$space-16: 64px;     // Page sections
+// Material Design 3 typography
+$headline-large: 32px;       // Page titles, hero text
+$headline-medium: 28px;      // Section headings
+$headline-small: 24px;       // Subsection headings
+$title-large: 22px;          // Important titles
+$title-medium: 16px;         // Regular titles
+$title-small: 14px;          // Small titles
+$body-large: 16px;           // Default body text
+$body-medium: 14px;          // Secondary body text
+$body-small: 12px;           // Captions, meta information
+$label-large: 14px;          // Button labels
+$label-medium: 12px;         // Chip labels
+$label-small: 11px;          // Small labels
 ```
 
 ## Component Library
 
-### Button Components
+### React Native Paper Components
 
-#### Primary Button
+#### Button Components
 ```typescript
-interface PrimaryButtonProps {
-  variant: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size: 'sm' | 'md' | 'lg';
-  state: 'default' | 'loading' | 'disabled';
-  fullWidth?: boolean;
-  iconLeft?: ReactNode;
-  iconRight?: ReactNode;
-}
-```
+import { Button } from 'react-native-paper';
 
-**Specifications:**
-- Height: sm(32px), md(40px), lg(48px)
-- Padding: sm(12px), md(16px), lg(20px)
-- Border radius: 8px
-- Font weight: Medium (500)
-- Transition: 150ms ease-in-out
-
-#### Button States
-- **Default**: Full opacity, normal colors
-- **Hover**: 90% opacity, subtle scale (1.02)
-- **Active**: 85% opacity, scale (0.98)
-- **Loading**: Spinner animation, disabled interaction
-- **Disabled**: 50% opacity, no interaction
-
-### Card Components
-
-#### Data Card
-```typescript
-interface DataCardProps {
-  variant: 'default' | 'highlighted' | 'compact';
-  elevation: 'none' | 'sm' | 'md' | 'lg';
-  padding: 'sm' | 'md' | 'lg';
-  header?: ReactNode;
-  footer?: ReactNode;
-  interactive?: boolean;
-}
-```
-
-**Specifications:**
-- Background: Surface color with gradient overlay for highlighted
-- Border: 1px solid border color
-- Border radius: 12px
-- Shadow: Elevation-based (0, 2, 4, 8px blur)
-- Padding: sm(12px), md(16px), lg(24px)
-
-### List Components
-
-#### Leaderboard Item
-```typescript
-interface LeaderboardItemProps {
-  rank: number;
-  walletAddress: string;
-  displayName?: string;
-  metric: string;
-  change?: {
-    value: string;
-    direction: 'up' | 'down' | 'neutral';
-  };
-  avatar?: string;
-  highlighted?: boolean;
-}
-```
-
-#### Trade Item
-```typescript
-interface TradeItemProps {
-  timestamp: Date;
-  walletAddress: string;
-  action: 'buy' | 'sell';
-  tokenSymbol: string;
-  amount: string;
-  value: string;
-  status: 'confirmed' | 'pending' | 'failed';
-}
-```
-
-### Input Components
-
-#### Search Input
-```typescript
-interface SearchInputProps {
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-  icon?: ReactNode;
-  clearable?: boolean;
+interface ButtonProps {
+  mode: 'text' | 'outlined' | 'contained' | 'elevated' | 'contained-tonal';
+  size?: 'small' | 'medium' | 'large';
   loading?: boolean;
+  disabled?: boolean;
+  icon?: string;
+  onPress: () => void;
+  children: React.ReactNode;
 }
+
+// Usage Examples
+<Button mode="contained" onPress={() => {}}>
+  Primary Action
+</Button>
+
+<Button mode="outlined" onPress={() => {}}>
+  Secondary Action
+</Button>
+
+<Button mode="text" onPress={() => {}}>
+  Tertiary Action
+</Button>
 ```
 
-#### Filter Toggle
+#### Card Components
 ```typescript
-interface FilterToggleProps {
-  options: Array<{
-    value: string;
-    label: string;
-    count?: number;
-  }>;
+import { Card } from 'react-native-paper';
+
+interface CardProps {
+  mode?: 'elevated' | 'outlined' | 'contained';
+  onPress?: () => void;
+  children: React.ReactNode;
+}
+
+// Usage Examples
+<Card mode="elevated">
+  <Card.Content>
+    <Text>Card content</Text>
+  </Card.Content>
+</Card>
+
+<Card mode="outlined" onPress={() => {}}>
+  <Card.Content>
+    <Text>Clickable card</Text>
+  </Card.Content>
+</Card>
+```
+
+#### List Components
+```typescript
+import { List } from 'react-native-paper';
+
+interface ListItemProps {
+  title: string;
+  description?: string;
+  left?: (props: any) => React.ReactNode;
+  right?: (props: any) => React.ReactNode;
+  onPress?: () => void;
+}
+
+// Usage Examples
+<List.Item
+  title="Wallet Address"
+  description="1Ab2...xyz9"
+  left={props => <List.Icon {...props} icon="wallet" />}
+  right={props => <List.Icon {...props} icon="chevron-right" />}
+  onPress={() => {}}
+/>
+```
+
+#### Chip Components
+```typescript
+import { Chip } from 'react-native-paper';
+
+interface ChipProps {
+  mode?: 'flat' | 'outlined';
+  selected?: boolean;
+  onPress?: () => void;
+  children: React.ReactNode;
+}
+
+// Usage Examples
+<Chip mode="outlined" selected={selectedTimeframe === '7d'} onPress={() => setTimeframe('7d')}>
+  7 Days
+</Chip>
+```
+
+#### Text Input Components
+```typescript
+import { TextInput } from 'react-native-paper';
+
+interface TextInputProps {
+  mode?: 'flat' | 'outlined';
+  label: string;
   value: string;
-  onChange: (value: string) => void;
-  variant: 'tabs' | 'pills' | 'dropdown';
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  secureTextEntry?: boolean;
+  keyboardType?: 'default' | 'numeric' | 'email-address';
 }
-```
 
-### Modal Components
-
-#### Subscription Modal
-```typescript
-interface SubscriptionModalProps {
-  tier: 'free' | 'degen' | 'market-maker';
-  currentTier?: string;
-  features: string[];
-  price: string;
-  onSubscribe: () => void;
-  onCancel: () => void;
-}
-```
-
-#### Token Details Modal
-```typescript
-interface TokenDetailsModalProps {
-  token: {
-    symbol: string;
-    name: string;
-    address: string;
-    price: string;
-    marketCap: string;
-    volume24h: string;
-    holders: Array<{
-      address: string;
-      percentage: number;
-    }>;
-  };
-  onClose: () => void;
-}
+// Usage Examples
+<TextInput
+  mode="outlined"
+  label="Search wallets"
+  value={searchQuery}
+  onChangeText={setSearchQuery}
+  placeholder="Enter wallet address"
+/>
 ```
 
 ## Screen Layouts
 
-### Tab Navigation Structure
-```
-┌─────────────────────────────────┐
-│           Header Bar            │ 60px
-├─────────────────────────────────┤
-│                                 │
-│         Content Area            │ flex-1
-│                                 │
-├─────────────────────────────────┤
-│          Tab Bar               │ 80px
-└─────────────────────────────────┘
-```
+### Navigation Structure
+```typescript
+// Using React Navigation with Paper theming
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Provider as PaperProvider } from 'react-native-paper';
 
-### Header Bar Components
-- **Left**: Back button / Menu icon
-- **Center**: Screen title / Search bar
-- **Right**: Notifications / Settings / Wallet status
+const Tab = createBottomTabNavigator();
 
-### Tab Bar Icons
-- **Leaderboards**: Trophy icon
-- **Live Feed**: Activity/Pulse icon
-- **Gems**: Diamond icon
-- **Profile**: User icon
-
-## User Flow Diagrams
-
-### Onboarding Flow
-```
-App Launch → Wallet Connect → Permission Setup → Tutorial → Main App
-    ↓              ↓             ↓              ↓          ↓
-  Splash      Choose Wallet   Notifications   Features   Dashboard
-   Page       Connection      Request         Overview    
+function AppNavigator() {
+  return (
+    <PaperProvider theme={theme}>
+      <NavigationContainer>
+        <Tab.Navigator>
+          <Tab.Screen name="Leaderboard" component={LeaderboardScreen} />
+          <Tab.Screen name="Live Feed" component={LiveFeedScreen} />
+          <Tab.Screen name="Gems" component={GemsScreen} />
+          <Tab.Screen name="Settings" component={SettingsScreen} />
+        </Tab.Navigator>
+      </NavigationContainer>
+    </PaperProvider>
+  );
+}
 ```
 
-### Subscription Flow
-```
-Profile Tab → Subscription → Choose Plan → Payment → Confirmation
-     ↓            ↓            ↓           ↓          ↓
-   Settings    Current Tier   Plan Details  Solana Pay  Success
-   Screen      Display        Comparison    QR Code     Screen
-```
+### Screen Templates
 
-### Notification Setup Flow
-```
-Profile → Settings → Notifications → Choose Wallet → Set Filters → Activate
-   ↓        ↓           ↓              ↓             ↓           ↓
-Settings  Notification Wallet List   Filter Setup  Confirmation Success
-Screen    Preferences  Selection     SOL Amount    Screen      Screen
-                                    Market Cap
-```
+#### Leaderboard Screen Layout
+```typescript
+import { Surface, Text, List, Chip } from 'react-native-paper';
 
-## Screen-Specific UI Requirements
+interface LeaderboardScreenProps {
+  // Screen props
+}
 
-### Leaderboards Screen
+function LeaderboardScreen() {
+  return (
+    <Surface style={styles.container}>
+      {/* Header with filters */}
+      <Surface style={styles.header}>
+        <Text variant="headlineMedium">Leaderboard</Text>
+        <View style={styles.filterContainer}>
+          <Chip mode="outlined" selected={timeframe === '1d'} onPress={() => setTimeframe('1d')}>
+            1D
+          </Chip>
+          <Chip mode="outlined" selected={timeframe === '7d'} onPress={() => setTimeframe('7d')}>
+            7D
+          </Chip>
+          <Chip mode="outlined" selected={timeframe === '30d'} onPress={() => setTimeframe('30d')}>
+            30D
+          </Chip>
+        </View>
+      </Surface>
 
-#### Layout Structure
-```
-┌─────────────────────────────────┐
-│ Time Filter [1h][1d][7d][30d]   │ 
-│ Token Filter [All][Pump][Bonk]  │
-├─────────────────────────────────┤
-│ ┌─────────────────────────────┐ │
-│ │ Rank | Wallet | PNL | Δ    │ │
-│ │   1  | 1Ab2... | +45 | ↑2  │ │
-│ │   2  | 3Cd4... | +32 | ↓1  │ │
-│ │   3  | 5Ef6... | +28 | ↑1  │ │
-│ └─────────────────────────────┘ │
-└─────────────────────────────────┘
-```
-
-#### Interactive Elements
-- **Time Filter**: Segmented control with active state
-- **Token Filter**: Chip-based filter with counts
-- **Leaderboard Items**: Swipeable for quick actions
-- **Pull to Refresh**: Standard iOS/Android pattern
-- **Infinite Scroll**: Load more on scroll
-
-### Live Feed Screen
-
-#### Layout Structure
-```
-┌─────────────────────────────────┐
-│ 🔴 LIVE | Last update: 2s ago   │
-├─────────────────────────────────┤
-│ ┌─────────────────────────────┐ │
-│ │ [💰] Buy BONK              │ │
-│ │ 1Ab2... | 15.5 SOL | 2s ago│ │
-│ └─────────────────────────────┘ │
-│ ┌─────────────────────────────┐ │
-│ │ [📈] Sell PUMP             │ │
-│ │ 3Cd4... | 23.1 SOL | 5s ago│ │
-│ └─────────────────────────────┘ │
-└─────────────────────────────────┘
+      {/* Leaderboard list */}
+      <List.Section>
+        {leaderboardData.map((item, index) => (
+          <List.Item
+            key={item.walletAddress}
+            title={`#${index + 1} ${item.walletAddress}`}
+            description={`PNL: ${item.pnl}`}
+            left={props => <List.Icon {...props} icon="account" />}
+            right={props => <Text style={styles.pnlText}>{item.pnl}</Text>}
+            onPress={() => navigateToWalletDetail(item.walletAddress)}
+          />
+        ))}
+      </List.Section>
+    </Surface>
+  );
+}
 ```
 
-#### Real-Time Features
-- **Live Indicator**: Pulsing red dot when connected
-- **Auto-scroll**: New trades appear at top
-- **Sound Notifications**: Optional audio alerts
-- **Haptic Feedback**: For new trade notifications
+## Theme Configuration
 
-### Gems Screen
+### Custom Theme Setup
+```typescript
+import { MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 
-#### Layout Structure
-```
-┌─────────────────────────────────┐
-│ Holdings > 0.01 SOL             │
-├─────────────────────────────────┤
-│ ┌─────────────────────────────┐ │
-│ │ [🔥] TOKEN_NAME             │ │
-│ │ $0.001 | MC: $2.3M         │ │
-│ │ 👥 3 top traders holding    │ │
-│ │ 📊 Total: 45.2 SOL         │ │
-│ └─────────────────────────────┘ │
-└─────────────────────────────────┘
-```
+const lightTheme = {
+  ...MD3LightTheme,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: '#2196F3',
+    secondary: '#4CAF50',
+    tertiary: '#9C27B0',
+    error: '#F44336',
+    surface: '#FFFFFF',
+    surfaceVariant: '#F5F5F5',
+    onSurface: '#1C1C1C',
+    outline: '#E0E0E0',
+  },
+};
 
-#### Discovery Features
-- **Token Cards**: Expandable for more details
-- **Social Proof**: Top trader avatars/names
-- **Quick Actions**: Add to watchlist, view details
-- **Sorting Options**: By holdings, trader count, recency
+const darkTheme = {
+  ...MD3DarkTheme,
+  colors: {
+    ...MD3DarkTheme.colors,
+    primary: '#2196F3',
+    secondary: '#4CAF50',
+    tertiary: '#9C27B0',
+    error: '#F44336',
+    surface: '#121212',
+    surfaceVariant: '#1E1E1E',
+    onSurface: '#FFFFFF',
+    outline: '#333333',
+  },
+};
 
-### Profile Screen
-
-#### Layout Structure
-```
-┌─────────────────────────────────┐
-│ ┌─────┐ Wallet: 1Ab2...         │
-│ │ 👤  │ Tier: Degen             │
-│ └─────┘ Notifications: 3 active │
-├─────────────────────────────────┤
-│ Trading Performance (30d)       │
-│ ┌─────────────────────────────┐ │
-│ │ TOKEN | PNL | ROI | Duration│ │
-│ │ BONK  |+103 |187% | 1d     │ │
-│ │ PUMP  | -12 |-23% | 3h     │ │
-│ └─────────────────────────────┘ │
-├─────────────────────────────────┤
-│ [Manage Subscription]           │
-│ [Notification Settings]         │
-│ [Export Data]                   │
-└─────────────────────────────────┘
+// Theme provider usage
+<PaperProvider theme={isDarkMode ? darkTheme : lightTheme}>
+  <App />
+</PaperProvider>
 ```
 
-## Mobile-First Design Considerations
+## Spacing and Layout
 
-### Touch Targets
-- **Minimum Size**: 44px x 44px (iOS) / 48dp x 48dp (Android)
-- **Spacing**: 8px minimum between touch targets
-- **Gesture Support**: Swipe, pinch, long-press where appropriate
-
-### Responsive Breakpoints
+### Grid System
 ```scss
-$mobile-sm: 320px;   // iPhone SE
-$mobile-md: 375px;   // iPhone standard
-$mobile-lg: 414px;   // iPhone Plus
-$tablet-sm: 768px;   // iPad mini
-$tablet-lg: 1024px;  // iPad Pro
+// 8dp grid system
+$spacing-xs: 4px;   // 0.5 units
+$spacing-sm: 8px;   // 1 unit
+$spacing-md: 16px;  // 2 units
+$spacing-lg: 24px;  // 3 units
+$spacing-xl: 32px;  // 4 units
+$spacing-xxl: 48px; // 6 units
 ```
 
-### Platform-Specific Considerations
-
-#### iOS Design Elements
-- **Navigation**: iOS-style navigation with large titles
-- **Tab Bar**: Bottom tab bar with SF Symbols
-- **Modals**: Sheet-style presentations
-- **Lists**: iOS-style disclosure indicators
-- **Pull-to-Refresh**: iOS bouncy animation
-
-#### Android Design Elements
-- **Navigation**: Material Design navigation patterns
-- **Tab Bar**: Material Design bottom navigation
-- **Modals**: Full-screen or bottom sheet modals
-- **Lists**: Material ripple effects
-- **Pull-to-Refresh**: Material circular progress
-
-### Performance Optimizations
-- **Image Loading**: Progressive loading with placeholders
-- **List Virtualization**: Only render visible items
-- **Bundle Splitting**: Code splitting for faster initial load
-- **Caching Strategy**: Aggressive caching for frequently accessed data
-
-## Accessibility Standards
-
-### Color Accessibility
-- **Contrast Ratio**: Minimum 4.5:1 for normal text, 3:1 for large text
-- **Color Independence**: Information not conveyed by color alone
-- **Dark Mode**: Full support with appropriate contrast adjustments
-
-### Typography Accessibility
-- **Font Size**: Minimum 16px for body text
-- **Line Height**: 1.5x font size for readability
-- **Font Weight**: Sufficient contrast between weights
-- **Dynamic Type**: Support for user font size preferences
-
-### Interaction Accessibility
-- **Screen Reader**: Full VoiceOver/TalkBack support
-- **Keyboard Navigation**: Tab order and focus management
-- **Voice Control**: Voice command support where applicable
-- **Reduced Motion**: Respect user motion preferences
-
-### Content Accessibility
-- **Alt Text**: Descriptive alt text for all images
-- **Labels**: Clear, descriptive labels for all interactive elements
-- **Error Messages**: Clear, actionable error descriptions
-- **Loading States**: Accessible loading and progress indicators
-
-## Animation and Micro-Interactions
-
-### Transition Timing
-```scss
-$transition-fast: 150ms ease-in-out;
-$transition-base: 200ms ease-in-out;
-$transition-slow: 300ms ease-in-out;
-$transition-bounce: 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+### Layout Patterns
+```typescript
+// Common layout styles
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+  header: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.outline,
+  },
+  card: {
+    margin: 8,
+    padding: 16,
+  },
+  listItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+});
 ```
 
-### Animation Patterns
-- **Page Transitions**: Slide, fade, or scale based on context
-- **Data Updates**: Subtle highlights for new information
-- **Loading States**: Skeleton screens and progress indicators
-- **Success States**: Checkmark animations and subtle celebrations
-- **Error States**: Shake animations and clear visual feedback
+## Accessibility
 
-### Micro-Interactions
-- **Button Press**: Scale down (0.95) with haptic feedback
-- **Card Selection**: Subtle elevation and border highlight
-- **Number Changes**: Count-up animations for metrics
-- **Connection Status**: Pulse animation for live indicators
-- **Refresh Actions**: Satisfying pull-to-refresh with feedback
+### React Native Paper Accessibility Features
+```typescript
+// Accessible component examples
+<Button
+  mode="contained"
+  onPress={() => {}}
+  accessibilityLabel="Refresh leaderboard data"
+  accessibilityHint="Loads the latest trading data"
+>
+  Refresh
+</Button>
 
-## Data Visualization Guidelines
+<List.Item
+  title="Wallet Address"
+  description="1Ab2...xyz9"
+  accessibilityLabel="Wallet 1Ab2...xyz9"
+  accessibilityRole="button"
+  accessibilityHint="Tap to view wallet details"
+  onPress={() => {}}
+/>
+```
 
-### Chart Types
-- **Line Charts**: Price movements, performance over time
-- **Bar Charts**: Volume comparisons, leaderboard rankings
-- **Pie Charts**: Portfolio composition, holdings breakdown
-- **Sparklines**: Inline trend indicators
+### Accessibility Guidelines
+1. **Color Contrast**: Maintain WCAG AA contrast ratios
+2. **Touch Targets**: Minimum 44px touch target size
+3. **Screen Reader Support**: Proper labels and hints
+4. **Focus Management**: Logical tab order and focus indicators
+5. **Dynamic Type**: Support for system font size preferences
 
-### Color Coding
-- **Green**: Positive values, gains, upward trends
-- **Red**: Negative values, losses, downward trends
-- **Blue**: Neutral values, informational data
-- **Yellow**: Warning states, pending transactions
+## Performance Optimization
 
-### Number Formatting
-- **Currency**: $1,234.56 (USD), 12.34 SOL (crypto)
-- **Percentages**: +15.3%, -8.2% (with appropriate colors)
-- **Large Numbers**: 1.2M, 3.4B (abbreviated for space)
-- **Addresses**: Truncated with copy functionality (1Ab2...cD3e)
+### React Native Paper Best Practices
+```typescript
+// Optimized list rendering
+import { FlatList } from 'react-native';
+import { List } from 'react-native-paper';
 
-### Real-Time Data Indicators
-- **Live Badge**: Pulsing green indicator for real-time feeds
-- **Last Updated**: Relative timestamps (2s ago, 1m ago)
-- **Connection Status**: Clear indicators for WebSocket status
-- **Data Freshness**: Visual indicators for stale data
+function OptimizedLeaderboardList({ data }) {
+  const renderItem = ({ item, index }) => (
+    <List.Item
+      title={item.walletAddress}
+      description={`PNL: ${item.pnl}`}
+      onPress={() => navigateToDetail(item.walletAddress)}
+    />
+  );
 
-This comprehensive UI/UX documentation ensures a consistent, accessible, and engaging user experience across the alpha-seeker mobile application, with particular attention to the unique needs of crypto traders and mobile-first usage patterns. 
+  return (
+    <FlatList
+      data={data}
+      renderItem={renderItem}
+      keyExtractor={item => item.walletAddress}
+      initialNumToRender={10}
+      maxToRenderPerBatch={10}
+      windowSize={10}
+      removeClippedSubviews={true}
+      getItemLayout={(data, index) => ({
+        length: 72,
+        offset: 72 * index,
+        index,
+      })}
+    />
+  );
+}
+```
+
+## Animation and Transitions
+
+### React Native Paper Animations
+```typescript
+// Using Paper's built-in animations
+import { useTheme } from 'react-native-paper';
+import { Animated } from 'react-native';
+
+function AnimatedCard({ children, visible }) {
+  const theme = useTheme();
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: visible ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
+
+  return (
+    <Animated.View style={[{ opacity }, styles.card]}>
+      {children}
+    </Animated.View>
+  );
+}
+```
+
+## Current Implementation Status
+
+### Implemented Components ✅
+- **Leaderboard Screen**: Fully functional with Paper components
+- **Top Bar**: App header with title and navigation
+- **Filter Chips**: Timeframe selection (1D, 7D, 30D)
+- **List Items**: Wallet entries with formatted data
+- **Theme Support**: Light theme with Material Design
+
+### Planned Components 🔄
+- **Live Feed Screen**: Real-time trades list
+- **Gems Screen**: Token discovery interface
+- **Wallet Detail Screen**: Comprehensive wallet analysis
+- **Settings Screen**: App configuration and preferences
+- **Dark Theme**: Full dark mode support
+- **Advanced Animations**: Smooth transitions and loading states
+
+## Migration Notes
+
+### From Tamagui to React Native Paper
+This documentation replaces the previous Tamagui-based design system with React Native Paper:
+
+1. **Component Migration**: All Tamagui components replaced with Paper equivalents
+2. **Theme System**: Switched to Material Design 3 theming
+3. **Styling**: Moved from Tamagui's CSS-in-JS to React Native Paper's theme system
+4. **Accessibility**: Enhanced accessibility with Paper's built-in features
+5. **Performance**: Optimized for React Native Paper's rendering patterns
+
+### Benefits of React Native Paper
+- **Material Design**: Consistent with Android design patterns
+- **Accessibility**: Built-in accessibility features
+- **Theming**: Robust theme system with dark mode support
+- **Performance**: Optimized for React Native
+- **Maintenance**: Active development and community support 

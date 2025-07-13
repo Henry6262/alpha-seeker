@@ -12,15 +12,15 @@ Alpha-Seeker is a sophisticated Solana trading intelligence platform built with 
 1. **Phase 1**: Bootstrap with Dune Analytics for rapid market validation
 2. **Phase 2**: Deploy Chainstack Geyser RPC for competitive advantage
 
-### Technology Stack
-- **Frontend**: React Native + Expo Router + Tamagui
-- **Backend**: Node.js + Fastify + Supabase
-- **Database**: PostgreSQL + TimescaleDB (SQLite for development)
-- **Real-time Data**: Chainstack Yellowstone gRPC Geyser
-- **Historical Data**: Dune Analytics API
+### Technology Stack (Current Implementation)
+- **Frontend**: React Native + Expo Router + React Native Paper
+- **Backend**: Node.js + Fastify + PostgreSQL
+- **Database**: PostgreSQL + Prisma ORM (SQLite for development)
+- **Real-time Data**: Chainstack Yellowstone gRPC Geyser (planned)
+- **Historical Data**: Dune Analytics API (implemented)
 - **State Management**: Zustand
-- **Payments**: Solana Pay SDK
-- **Notifications**: Firebase Cloud Messaging
+- **Payments**: Solana Pay SDK (planned)  
+- **Notifications**: Firebase Cloud Messaging (planned)
 
 ## Directory Structure
 
@@ -83,7 +83,7 @@ solana-mobile-expo-template-main/
 │   │   └── src/
 │   │       └── index.ts                 # Shared types for API/frontend
 │   │
-│   └── ui/                              # Tamagui UI components
+│   └── ui/                              # Shared UI components
 │       └── src/
 │           └── index.ts                 # UI component exports
 │
@@ -136,17 +136,18 @@ solana-mobile-expo-template-main/
 - `GET /api/v1/gems` - Discovered gems feed
 - `GET /api/v1/wallets/{address}/positions` - Wallet positions
 
-### 3. Frontend Layer (React Native + Tamagui)
+### 3. Frontend Layer (React Native + React Native Paper)
 **Purpose**: Cross-platform mobile application
 
 **Key Features**:
-- Multi-timeframe PNL leaderboards
-- Real-time trades feed with WebSocket connections
-- Token holdings bubble chart visualizations
-- "Gems" discovery interface with confidence scores
-- Wallet profile pages with performance metrics
+- Multi-timeframe PNL leaderboards (implemented)
+- Real-time trades feed with WebSocket connections (planned)
+- Token holdings bubble chart visualizations (planned)
+- "Gems" discovery interface with confidence scores (planned)
+- Wallet profile pages with performance metrics (planned)
 
 **State Management**: Zustand for efficient state handling
+**UI Components**: React Native Paper for Material Design theming
 
 ### 4. Data Pipeline (Hybrid Approach)
 **Purpose**: Reliable data ingestion from multiple sources
@@ -199,21 +200,23 @@ solana-mobile-expo-template-main/
 
 ## Sprint-Based Development
 
-### Sprint 1: Foundation & Data Pipelines (85% Complete)
+### Sprint 1: Foundation & Data Pipelines (✅ COMPLETE)
 **Focus**: Core infrastructure and data integration
 
 **Key Deliverables**:
 - ✅ Database schema and migrations
-- ✅ Dune Analytics integration
-- ✅ Basic leaderboard API
+- ✅ Dune Analytics integration with real data (5,063 wallets)
+- ✅ Full leaderboard API with 3,000+ PNL snapshots
+- ✅ Mobile app with working leaderboard UI
+- ✅ Complete end-to-end integration
 - ✅ Comprehensive documentation
-- 🔄 Chainstack Geyser RPC integration (Phase 1.4)
+- 🔄 Chainstack Geyser RPC integration (Phase 2)
 
 ### Sprint 2: Core Features & Frontend (Weeks 5-6)
 **Focus**: User-facing features and real-time capabilities
 
 **Key Deliverables**:
-- React Native frontend with Tamagui
+- Enhanced React Native frontend with React Native Paper
 - Live trades feed with WebSocket
 - Real-time leaderboard updates
 - Token holdings visualizations
@@ -272,6 +275,81 @@ solana-mobile-expo-template-main/
 4. **Prevention**: Implement monitoring and alerting
 
 ## Deployment Strategy
+
+### Mobile App Deployment & Troubleshooting
+
+#### Quick Start Commands
+For fastest deployment from the project root:
+
+```bash
+# 1. Full setup (run once or when dependencies change)
+npm run mobile:setup
+
+# 2. Start development server
+npm run mobile:start
+
+# 3. Build for Android
+npm run mobile:build
+```
+
+#### Manual Deployment Process
+
+1. **Environment Setup**
+   ```bash
+   cd apps/mobile
+   pnpm install
+   ```
+
+2. **Clear Caches (if experiencing issues)**
+   ```bash
+   rm -rf node_modules/.cache
+   rm -rf .expo
+   npx expo install --fix
+   ```
+
+3. **Start Development Server**
+   ```bash
+   npx expo start --clear
+   ```
+
+4. **Deploy to Android Emulator**
+   - Open Android Studio
+   - Start Android emulator
+   - Press 'a' in the Expo CLI to launch on Android
+
+#### Common Issues & Solutions
+
+**Module Resolution Error (HTTP 500)**
+- **Symptoms**: "Unable to resolve module ../../App from expo/AppEntry.js"
+- **Solution**: This is automatically handled by the bridge `App.tsx` file in the project root
+- **Prevention**: Don't delete the root `App.tsx` file
+
+**Development Server Port Conflicts**
+- **Symptoms**: "Port 8081 is running this app in another window"
+- **Solution**: Kill existing processes with `pkill -f "expo start"` or choose a different port
+
+**Metro Bundler Cache Issues**
+- **Symptoms**: Outdated or corrupted bundles
+- **Solution**: Run `npx expo start --clear` to clear cache
+
+#### Monorepo Configuration
+
+The project uses a monorepo structure with pnpm workspaces. Key configuration files:
+
+1. **Metro Config** (`apps/mobile/metro.config.js`):
+   - Handles monorepo module resolution
+   - Configures watchFolders for workspace
+   - Resolves cross-platform compatibility
+
+2. **Bridge File** (`App.tsx` in root):
+   - Resolves module path conflicts
+   - Re-exports the actual mobile app component
+   - Essential for proper bundling
+
+3. **Package Resolution**:
+   - Uses pnpm workspaces for dependency management
+   - Shared types and UI components across packages
+   - Proper node_modules resolution chain
 
 ### Development Environment
 - Local SQLite database for development
