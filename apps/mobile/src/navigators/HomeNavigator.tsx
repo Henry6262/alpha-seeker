@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
 import { TopBar } from "../components/top-bar/top-bar-feature";
 import { DashboardScreen } from "../screens/DashboardScreen";
-import { LeaderboardScreen } from "../screens/LeaderboardScreen";
+import LeaderboardScreen from "../screens/LeaderboardScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { MaterialIcons } from "@expo/vector-icons";
 

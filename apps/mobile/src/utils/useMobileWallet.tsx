@@ -1,4 +1,4 @@
-import { transact } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
+import { transact } from "./mobileWalletAdapter";
 import { Account, useAuthorization } from "./useAuthorization";
 import { Transaction, TransactionSignature, VersionedTransaction } from "@solana/web3.js";
 import { useCallback, useMemo } from "react";

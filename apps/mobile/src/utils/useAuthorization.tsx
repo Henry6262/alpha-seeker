@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import {
-  Account as AuthorizedAccount,
+  AuthorizedAccount,
   AuthorizationResult,
   AuthorizeAPI,
   AuthToken,
@@ -9,7 +9,7 @@ import {
   DeauthorizeAPI,
   SignInPayloadWithRequiredFields,
   SignInPayload,
-} from "@solana-mobile/mobile-wallet-adapter-protocol";
+} from "./mobileWalletAdapter";
 import { toUint8Array } from "js-base64";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";

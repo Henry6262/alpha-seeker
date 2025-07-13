@@ -1,5 +1,5 @@
 import { View, StyleSheet } from "react-native";
-import { ConnectButton, SignInButton } from "./sign-in-ui";
+import { ConnectButton, SignInButton, WalletUnavailableMessage } from "./sign-in-ui";
 
 export function SignInFeature() {
   return (
@@ -8,6 +8,7 @@ export function SignInFeature() {
         <ConnectButton />
         <SignInButton />
       </View>
+      <WalletUnavailableMessage />
     </>
   );
 }

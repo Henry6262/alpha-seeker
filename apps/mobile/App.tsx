@@ -60,7 +60,6 @@ export default function App() {
             ]}
           >
             <PaperProvider
-              theme={colorScheme === "dark" ? CombinedDarkTheme : CombinedDefaultTheme}
             >
               <AppNavigator />
             </PaperProvider>

@@ -1,6 +1,7 @@
-import { transact } from "@solana-mobile/mobile-wallet-adapter-protocol";
+import { transact, isExpoGo, isMWAAvailable } from "../../utils/mobileWalletAdapter";
 import { useState, useCallback } from "react";
-import { Button } from "react-native-paper";
+import { Button, Text } from "react-native-paper";
+import { View } from "react-native";
 import { alertAndLog } from "../../utils/alertAndLog";
 import { useAuthorization } from "../../utils/useAuthorization";
 import { useMobileWallet } from "../../utils/useMobileWallet";
@@ -25,7 +26,7 @@ export function ConnectButton() {
   return (
     <Button
       mode="contained"
-      disabled={authorizationInProgress}
+      disabled={authorizationInProgress || !isMWAAvailable}
       onPress={handleConnectPress}
       style={{ flex: 1 }}
     >
@@ -58,11 +59,34 @@ export function SignInButton() {
   return (
     <Button
       mode="outlined"
-      disabled={signInInProgress}
+      disabled={signInInProgress || !isMWAAvailable}
       onPress={handleConnectPress}
       style={{ marginLeft: 4, flex: 1 }}
     >
       Sign in
     </Button>
+  );
+}
+
+export function WalletUnavailableMessage() {
+  if (isMWAAvailable) {
+    return null;
+  }
+
+  return (
+    <View style={{ marginTop: 16, padding: 16, backgroundColor: '#fff3cd', borderRadius: 8 }}>
+      <Text style={{ color: '#856404', fontWeight: 'bold', marginBottom: 8 }}>
+        📱 Wallet functionality not available
+      </Text>
+      <Text style={{ color: '#856404', fontSize: 12 }}>
+        {isExpoGo() 
+          ? "Solana Mobile Wallet Adapter requires a development build. Running in Expo Go limits wallet functionality."
+          : "Mobile Wallet Adapter is not available on this device."
+        }
+      </Text>
+      <Text style={{ color: '#856404', fontSize: 12, marginTop: 4 }}>
+        To use wallet features, create a development build with: npx eas build --profile development
+      </Text>
+    </View>
   );
 }

@@ -65,6 +65,8 @@ module.exports = [
         Buffer: "readonly",
         crypto: "readonly",
         React: "readonly",
+        RequestInit: "readonly",
+        URLSearchParams: "readonly",
       },
     },
     plugins: {
