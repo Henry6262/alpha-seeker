@@ -4,7 +4,7 @@ import { prisma } from '../../lib/prisma'
 interface LeaderboardQuery {
   timeframe?: '1h' | '1d' | '7d' | '30d'
   ecosystem?: 'all' | 'pump.fun' | 'letsbonk.fun'
-  type?: 'pnl' | 'volume'
+  type?: 'pnl' | 'volume' // Volume requests will be rejected
   limit?: string
 }
 
@@ -17,6 +17,14 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
       type = 'pnl',
       limit = '100' 
     } = request.query
+    
+    // Validate type - only PNL supported in MVP
+    if (request.query.type === 'volume') {
+      return reply.status(400).send({
+        success: false,
+        error: 'Volume leaderboard has been removed from MVP. Only PNL leaderboard is supported.'
+      })
+    }
     
     // Convert limit to integer
     const limitNumber = parseInt(limit, 10) || 100

@@ -41,7 +41,7 @@ const envSchema = z.object({
   ENABLE_KOL_TRADERS: z.string().transform((val: string) => val === 'true').default(true),
   ENABLE_REAL_TIME_TRACKING: z.string().transform((val: string) => val === 'true').default(true),
   ENABLE_DUNE_INTEGRATION: z.string().transform((val: string) => val === 'true').default(true),
-  ENABLE_MOCK_DATA: z.string().transform((val: string) => val === 'true').default(true),
+  USE_MOCK_DATA: z.string().transform((val: string) => val === 'true').default(false),
   
   // Data Source Priority
   PRIORITIZE_GEYSER_DATA: z.string().transform((val: string) => val === 'true').default(true),
@@ -149,7 +149,7 @@ export const appConfig = {
   
   dataSources: {
     enableDuneIntegration: config.ENABLE_DUNE_INTEGRATION,
-    enableMockData: config.ENABLE_MOCK_DATA,
+    enableMockData: config.USE_MOCK_DATA,
     prioritizeGeyserData: config.PRIORITIZE_GEYSER_DATA,
     duneApiKey: config.DUNE_API_KEY,
     duneRefreshCron: config.DUNE_REFRESH_CRON,
