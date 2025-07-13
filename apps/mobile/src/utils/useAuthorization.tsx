@@ -46,11 +46,14 @@ function getAuthorizationFromAuthorizationResult(
     // We have yet to select an account.
     previouslySelectedAccount == null ||
     // The previously selected account is no longer in the set of authorized addresses.
-    !authorizationResult.accounts.some(
+    !authorizationResult.accounts.find(
       ({ address }) => address === previouslySelectedAccount.address
     )
   ) {
     const firstAccount = authorizationResult.accounts[0];
+    if (!firstAccount) {
+      throw new Error('No accounts found in authorization result');
+    }
     selectedAccount = getAccountFromAuthorizedAccount(firstAccount);
   } else {
     selectedAccount = previouslySelectedAccount;

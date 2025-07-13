@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { Appbar, useTheme, Text } from "react-native-paper";
+import { Appbar, useTheme } from "react-native-paper";
 import { TopBarWalletButton, TopBarWalletMenu } from "./top-bar-ui";
 import { useNavigation } from "@react-navigation/core";
 

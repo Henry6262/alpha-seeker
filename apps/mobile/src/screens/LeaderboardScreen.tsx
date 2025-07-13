@@ -1,165 +1,177 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { Text, Card, Button, List, Chip, ActivityIndicator } from 'react-native-paper';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { Text, Card, Button, ActivityIndicator, Chip, Divider } from 'react-native-paper';
+import { apiService, LeaderboardResponse } from '../services/api';
 
-interface WalletData {
-  address: string;
-  curatedName?: string;
-  pnl7d?: number;
-  pnl30d?: number;
-  isTracked: boolean;
-}
+export default function LeaderboardScreen() {
+  const [loading, setLoading] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [apiStatus, setApiStatus] = useState<any>(null);
+  const [timeframe, setTimeframe] = useState<'1h' | '1d' | '7d' | '30d'>('1d');
 
-interface ApiResponse {
-  success: boolean;
-  data: {
-    totalTracked: number;
-    leaderboardWallets: WalletData[];
-  };
-}
+  useEffect(() => {
+    loadLeaderboardData();
+    checkApiStatus();
+  }, [timeframe]);
 
-const formatCurrency = (amount: number): string => {
-  if (amount >= 1000000) {
-    return `$${(amount / 1000000).toFixed(2)}M`;
-  } else if (amount >= 1000) {
-    return `$${(amount / 1000).toFixed(1)}K`;
-  }
-  return `$${amount.toFixed(2)}`;
-};
-
-const formatAddress = (address: string): string => {
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
-};
-
-export function LeaderboardScreen() {
-  const { data, isLoading, error, refetch } = useQuery<ApiResponse>({
-    queryKey: ['wallet-tracker-summary'],
-    queryFn: async () => {
-      const response = await fetch('http://localhost:3000/api/v1/wallet-tracker/summary');
-      if (!response.ok) {
-        throw new Error('Failed to fetch wallet data');
-      }
-      return response.json();
-    },
-    refetchInterval: 30000, // Refetch every 30 seconds
-  });
-
-  const handleRefresh = () => {
-    refetch();
+  const loadLeaderboardData = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await apiService.getLeaderboard({
+        timeframe,
+        limit: 50
+      });
+      setLeaderboardData(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load leaderboard');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (isLoading) {
+  const checkApiStatus = async () => {
+    try {
+      const [health, bootstrap, config] = await Promise.all([
+        apiService.getHealth(),
+        apiService.getBootstrapStatus(),
+        apiService.getConfig()
+      ]);
+      setApiStatus({ health, bootstrap, config });
+    } catch (err) {
+      console.error('Failed to check API status:', err);
+    }
+  };
+
+  const renderTimeframeChips = () => {
+    const timeframes: Array<'1h' | '1d' | '7d' | '30d'> = ['1h', '1d', '7d', '30d'];
+    
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading Alpha Seekers...</Text>
+      <View style={styles.chipContainer}>
+        {timeframes.map((tf) => (
+          <Chip
+            key={tf}
+            selected={timeframe === tf}
+            onPress={() => setTimeframe(tf)}
+            style={styles.chip}
+          >
+            {tf}
+          </Chip>
+        ))}
       </View>
     );
-  }
+  };
 
-  if (error) {
+  const renderApiStatus = () => {
+    if (!apiStatus) return null;
+
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Failed to load data</Text>
-        <Button mode="contained" onPress={handleRefresh} style={styles.retryButton}>
-          Retry
-        </Button>
-      </View>
-    );
-  }
-
-  const walletData = data?.data;
-  const leaderboardWallets = walletData?.leaderboardWallets || [];
-  const walletsWithPnl = leaderboardWallets.filter(wallet => wallet.pnl7d || wallet.pnl30d);
-
-  return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
-      }
-    >
-      <View style={styles.headerContainer}>
-        <Text variant="headlineMedium" style={styles.title}>
-          🏆 Alpha Seekers Leaderboard
-        </Text>
-        <Text variant="bodyMedium" style={styles.subtitle}>
-          Track the top performing Solana wallets
-        </Text>
-      </View>
-
-      {/* Summary Stats */}
-      <Card style={styles.summaryCard}>
+      <Card style={styles.statusCard}>
+        <Card.Title title="🔗 API Connection Status" />
         <Card.Content>
-          <Text variant="titleLarge" style={styles.summaryTitle}>
-            📊 Summary
+          <Text style={styles.statusText}>
+            ✅ API Health: {apiStatus.health?.status === 'ok' ? 'Connected' : 'Disconnected'}
           </Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text variant="headlineSmall" style={styles.statNumber}>
-                {walletData?.totalTracked?.toLocaleString() || 0}
-              </Text>
-              <Text variant="bodySmall">Total Tracked</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text variant="headlineSmall" style={styles.statNumber}>
-                {walletsWithPnl.length}
-              </Text>
-              <Text variant="bodySmall">Top Performers</Text>
-            </View>
-          </View>
+          <Text style={styles.statusText}>
+            📊 Bootstrap: {apiStatus.bootstrap?.data?.isBootstrapped ? 'Complete' : 'Pending'}
+          </Text>
+          <Text style={styles.statusText}>
+            👥 Wallets Tracked: {apiStatus.bootstrap?.data?.walletsCount || 0}
+          </Text>
+          <Text style={styles.statusText}>
+            📈 PNL Snapshots: {apiStatus.bootstrap?.data?.pnlSnapshots7d || 0}
+          </Text>
+          <Text style={styles.statusText}>
+            ⭐ Famous Traders: {apiStatus.bootstrap?.data?.famousTraders || 0}
+          </Text>
         </Card.Content>
       </Card>
+    );
+  };
 
-      {/* Leaderboard */}
-      <Card style={styles.leaderboardCard}>
+  const renderLeaderboardData = () => {
+    if (!leaderboardData) return null;
+
+    return (
+      <Card style={styles.dataCard}>
+        <Card.Title title="📊 Leaderboard Data" />
         <Card.Content>
-          <Text variant="titleLarge" style={styles.leaderboardTitle}>
-            🥇 Top Performers
+          <Text style={styles.filterText}>
+            Timeframe: {leaderboardData.filters.timeframe} | 
+            Ecosystem: {leaderboardData.filters.ecosystem} | 
+            Type: {leaderboardData.filters.type}
           </Text>
+          <Divider style={styles.divider} />
           
-          {leaderboardWallets.length === 0 ? (
-            <Text style={styles.noDataText}>No wallet data available</Text>
+          {leaderboardData.data.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>⚠️ No data available</Text>
+              <Text style={styles.emptySubtext}>
+                Try refreshing or selecting a different timeframe
+              </Text>
+              <Button 
+                mode="contained" 
+                onPress={loadLeaderboardData}
+                style={styles.retryButton}
+              >
+                Retry
+              </Button>
+            </View>
           ) : (
-            leaderboardWallets.map((wallet, index) => (
-              <List.Item
-                key={wallet.address}
-                title={wallet.curatedName || formatAddress(wallet.address)}
-                description={`Address: ${formatAddress(wallet.address)}`}
-                left={() => (
-                  <View style={styles.rankContainer}>
-                    <Text style={styles.rankText}>#{index + 1}</Text>
-                  </View>
-                )}
-                right={() => (
-                  <View style={styles.pnlContainer}>
-                    {wallet.pnl7d && (
-                      <Chip
-                        mode="flat"
-                        style={[styles.pnlChip, { backgroundColor: '#e8f5e8' }]}
-                        textStyle={styles.pnlText}
-                      >
-                        7D: {formatCurrency(wallet.pnl7d)}
-                      </Chip>
-                    )}
-                    {wallet.pnl30d && (
-                      <Chip
-                        mode="flat"
-                        style={[styles.pnlChip, { backgroundColor: '#e8f8ff' }]}
-                        textStyle={styles.pnlText}
-                      >
-                        30D: {formatCurrency(wallet.pnl30d)}
-                      </Chip>
-                    )}
-                  </View>
-                )}
-                style={styles.walletItem}
-              />
+            leaderboardData.data.map((entry, index) => (
+              <View key={entry.id} style={styles.leaderboardItem}>
+                <Text style={styles.rank}>#{entry.rank}</Text>
+                <View style={styles.walletInfo}>
+                  <Text style={styles.wallet}>
+                    {entry.walletAddress.slice(0, 4)}...{entry.walletAddress.slice(-4)}
+                  </Text>
+                  <Text style={styles.address}>{entry.walletAddress}</Text>
+                </View>
+                <View style={styles.pnlInfo}>
+                  <Text style={styles.pnl}>
+                    ${(entry.metric / 1000).toFixed(1)}K
+                  </Text>
+                  <Text style={styles.pnlLabel}>PNL USD</Text>
+                </View>
+              </View>
             ))
           )}
         </Card.Content>
       </Card>
+    );
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>🏆 Alpha Seeker Leaderboard</Text>
+        <Text style={styles.subtitle}>Top Solana Traders</Text>
+      </View>
+
+      {renderTimeframeChips()}
+      {renderApiStatus()}
+      
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" />
+          <Text style={styles.loadingText}>Loading leaderboard...</Text>
+        </View>
+      )}
+
+      {error && (
+        <Card style={styles.errorCard}>
+          <Card.Content>
+            <Text style={styles.errorText}>❌ {error}</Text>
+            <Button onPress={loadLeaderboardData} mode="outlined">
+              Retry
+            </Button>
+          </Card.Content>
+        </Card>
+      )}
+
+      {!loading && !error && renderLeaderboardData()}
     </ScrollView>
   );
 }
@@ -168,98 +180,128 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    backgroundColor: '#f5f5f5',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  header: {
+    marginBottom: 20,
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2196f3',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  errorText: {
+  subtitle: {
     fontSize: 16,
+    color: '#666',
+    marginTop: 4,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     marginBottom: 16,
+  },
+  chip: {
+    marginHorizontal: 4,
+  },
+  statusCard: {
+    marginBottom: 16,
+  },
+  dataCard: {
+    marginBottom: 16,
+  },
+  statusText: {
+    fontSize: 14,
+    marginBottom: 4,
+    fontFamily: 'monospace',
+  },
+  filterText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+  },
+  divider: {
+    marginBottom: 16,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#666',
     textAlign: 'center',
+    marginBottom: 16,
   },
   retryButton: {
     marginTop: 8,
   },
-  headerContainer: {
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  title: {
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  subtitle: {
-    textAlign: 'center',
-    marginTop: 4,
-    opacity: 0.7,
-  },
-  summaryCard: {
-    marginBottom: 16,
-  },
-  summaryTitle: {
-    marginBottom: 16,
-    fontWeight: 'bold',
-  },
-  statsRow: {
+  leaderboardItem: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
+    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  statNumber: {
-    fontWeight: 'bold',
-    color: '#2196f3',
-  },
-  leaderboardCard: {
-    marginBottom: 16,
-  },
-  leaderboardTitle: {
-    marginBottom: 16,
-    fontWeight: 'bold',
-  },
-  noDataText: {
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginTop: 16,
-  },
-  walletItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    paddingVertical: 8,
+    borderBottomColor: '#eee',
+    backgroundColor: '#fff',
+    marginBottom: 4,
+    borderRadius: 8,
   },
-  rankContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 40,
-  },
-  rankText: {
-    fontWeight: 'bold',
+  rank: {
     fontSize: 16,
+    fontWeight: 'bold',
+    width: 50,
     color: '#ff6b35',
   },
-  pnlContainer: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+  walletInfo: {
+    flex: 1,
+    marginHorizontal: 12,
   },
-  pnlChip: {
-    marginVertical: 2,
-    minWidth: 80,
-  },
-  pnlText: {
-    fontSize: 12,
+  wallet: {
+    fontSize: 14,
     fontWeight: 'bold',
+    fontFamily: 'monospace',
+    color: '#333',
+  },
+  address: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    color: '#666',
+    marginTop: 2,
+  },
+  pnlInfo: {
+    alignItems: 'flex-end',
+  },
+  pnl: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4caf50',
+  },
+  pnlLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 2,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 16,
+  },
+  errorCard: {
+    marginBottom: 16,
+    backgroundColor: '#ffebee',
+  },
+  errorText: {
+    color: '#d32f2f',
+    marginBottom: 8,
   },
 }); 

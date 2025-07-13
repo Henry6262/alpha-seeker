@@ -51,7 +51,14 @@ export interface ClusterProviderContext {
 const Context = createContext<ClusterProviderContext>({} as ClusterProviderContext);
 
 export function ClusterProvider({ children }: { children: ReactNode }) {
-  const [selectedCluster, setSelectedCluster] = useState<Cluster>(defaultClusters[0]);
+  const [selectedCluster, setSelectedCluster] = useState<Cluster>(
+    defaultClusters[0] || {
+      name: "Devnet",
+      endpoint: "https://api.devnet.solana.com",
+      network: ClusterNetwork.Devnet,
+      active: true,
+    }
+  );
   const clusters = [...defaultClusters];
 
   const value: ClusterProviderContext = useMemo(

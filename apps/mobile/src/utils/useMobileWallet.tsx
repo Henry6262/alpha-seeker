@@ -33,7 +33,7 @@ export function useMobileWallet() {
       transaction: Transaction | VersionedTransaction,
       minContextSlot: number
     ): Promise<TransactionSignature> => {
-      return await transact(async wallet => {
+      const result = await transact(async wallet => {
         await authorizeSession(wallet);
         const signatures = await wallet.signAndSendTransactions({
           transactions: [transaction],
@@ -41,13 +41,17 @@ export function useMobileWallet() {
         });
         return signatures[0];
       });
+      if (!result) {
+        throw new Error('Transaction signing failed');
+      }
+      return result;
     },
     [authorizeSession]
   );
 
   const signMessage = useCallback(
     async (message: Uint8Array): Promise<Uint8Array> => {
-      return await transact(async wallet => {
+      const result = await transact(async wallet => {
         const authResult = await authorizeSession(wallet);
         const signedMessages = await wallet.signMessages({
           addresses: [authResult.address],
@@ -55,6 +59,10 @@ export function useMobileWallet() {
         });
         return signedMessages[0];
       });
+      if (!result) {
+        throw new Error('Message signing failed');
+      }
+      return result;
     },
     [authorizeSession]
   );

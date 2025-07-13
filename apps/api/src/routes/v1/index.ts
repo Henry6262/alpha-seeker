@@ -371,6 +371,31 @@ export async function v1Routes(fastify: FastifyInstance) {
     }
   })
 
+  // Manual refresh leaderboards endpoint (for development)
+  fastify.post('/bootstrap/refresh-leaderboards', async (request, reply) => {
+    try {
+      console.log('🔄 Manual leaderboard refresh requested via API')
+      
+      const duneService = new DuneService()
+      await duneService.refreshAllLeaderboards()
+      
+      return {
+        success: true,
+        message: 'All leaderboards refreshed successfully',
+        timestamp: new Date().toISOString()
+      }
+    } catch (error) {
+      console.error('❌ Manual leaderboard refresh failed:', error)
+      
+      return reply.status(500).send({
+        success: false,
+        error: 'Manual leaderboard refresh failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      })
+    }
+  })
+
   // Wallet tracking endpoints - Bridge between leaderboard and real-time tracking
   fastify.get('/wallet-tracker/leaderboard-wallets', async (request, reply) => {
     try {
