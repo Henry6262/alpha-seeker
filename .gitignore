@@ -70,6 +70,8 @@ coverage/
 # Output of 'npm pack'
 *.tgz
 
+build-check
+
 # Yarn Integrity file
 .yarn-integrity
 
