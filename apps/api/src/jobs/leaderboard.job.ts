@@ -1,5 +1,6 @@
 import cron from 'node-cron'
 import { DuneService } from '../services/dune.service.js'
+import { appConfig } from '../config/index.js'
 
 /**
  * Leaderboard refresh job
@@ -16,11 +17,8 @@ export function startLeaderboardRefreshJob() {
     console.log('⏰ Running daily leaderboard refresh job...')
     
     try {
-      // First, refresh with latest Dune data
-      await duneService.bootstrapBonkLaunchpadData()
-      
-      // Then refresh all leaderboards with optimized timeframes
-      await duneService.refreshAllLeaderboards()
+      // Execute the daily refresh workflow
+      await duneService.executeDailyRefresh()
       
       console.log('✅ Daily leaderboard refresh job completed successfully')
     } catch (error) {
