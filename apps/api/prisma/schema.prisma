@@ -1,224 +1,175 @@
-// Alpha-Seeker Database Schema for PostgreSQL + TimescaleDB
-// Implements "raw event data vs aggregated state" architecture
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"  // Changed from sqlite to postgresql
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// CORE TABLES (Normalized - System of Record)
+model KolWallet {
+  address           String                @id
+  curatedName       String                @map("curated_name")
+  twitterHandle     String?               @map("twitter_handle")
+  notes             String?
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  pnlSnapshots      KolPnlSnapshot[]
+  positions         KolPosition[]
+  realizedPnlEvents KolRealizedPnlEvent[]
+  tokenTransfers    KolTokenTransfer[]
+  transactions      KolTransaction[]
 
-// Master directory for tracked wallet addresses
-model Wallet {
-  address           String   @id                        // VARCHAR(44) PRIMARY KEY - natural identifier
-  curatedName       String?  @map("curated_name")       // TEXT - snake_case naming  
-  twitterHandle     String?  @map("twitter_handle")     // TEXT - Twitter username
-  isFamousTrader    Boolean  @default(false) @map("is_famous_trader")   // Boolean flag for Gems discovery
-  isLeaderboardUser Boolean  @default(true) @map("is_leaderboard_user") // Include in leaderboards
-  firstSeenAt       DateTime @default(now()) @map("first_seen_at") @db.Timestamptz // PostgreSQL timestamptz
-  metadataJson      Json?    @map("metadata_json")      // JSONB - flexible metadata
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
-
-  // Relations
-  transactionsAsSigner Transaction[] @relation("SignerWallet")
-  tokenTransfers       TokenTransfer[]
-  positions            Position[]
-  pnlSnapshots         PnlSnapshot[]
-
-  @@map("wallets")
-  @@index([isFamousTrader])      // Index for Gems discovery
-  @@index([isLeaderboardUser])   // Index for leaderboard filtering
-  @@index([firstSeenAt])
+  @@index([curatedName])
+  @@map("kol_wallets")
 }
 
-// Token registry with metadata
-model Token {
-  mint_address    String   @id @map("mint_address")     // VARCHAR(44) PRIMARY KEY
-  symbol          String?
-  name            String?
-  decimals        Int?
-  logo_uri        String?  @map("logo_uri")
-  coingecko_id    String?  @map("coingecko_id")
-  is_meme_token   Boolean  @default(false) @map("is_meme_token")
-  is_verified     Boolean  @default(false) @map("is_verified")
-  launch_date     DateTime? @map("launch_date") @db.Timestamptz
-  metadata_json   Json?    @map("metadata_json")
-  created_at      DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updated_at      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+model KolTransaction {
+  signature      String             @id
+  blockTime      DateTime           @map("block_time") @db.Timestamptz(6)
+  slot           BigInt
+  kolAddress     String             @map("kol_address")
+  feeLamports    BigInt             @map("fee_lamports")
+  wasSuccessful  Boolean            @default(true) @map("was_successful")
+  programIds     String[]           @map("program_ids")
+  computeUnits   BigInt?            @map("compute_units")
+  metadataJson   Json?              @map("metadata_json")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  tokenTransfers KolTokenTransfer[]
+  kolWallet      KolWallet          @relation(fields: [kolAddress], references: [address])
 
-  // Relations
-  token_transfers TokenTransfer[]
-  positions       Position[]
-  gems_feed       GemsFeed[]
-  realized_pnl_events RealizedPnlEvent[]
-
-  @@map("tokens")
-  @@index([symbol])
-  @@index([is_meme_token])
-  @@index([launch_date])
-}
-
-// TIME-SERIES TABLES (TimescaleDB Hypertables)
-
-// Immutable transaction log - TimescaleDB hypertable
-model Transaction {
-  signature         String   @id                       // VARCHAR(88) PRIMARY KEY - transaction signature
-  blockTime         DateTime @map("block_time") @db.Timestamptz // Time dimension for TimescaleDB
-  slot              BigInt
-  signerAddress     String   @map("signer_address")    // Foreign key to wallets
-  feeLamports       BigInt   @map("fee_lamports")
-  wasSuccessful     Boolean  @default(true) @map("was_successful")
-  programIds        String[] @map("program_ids")       // Array of program IDs
-  computeUnits      BigInt?  @map("compute_units")
-  metadataJson      Json?    @map("metadata_json")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  // Relations
-  signer            Wallet   @relation("SignerWallet", fields: [signerAddress], references: [address])
-  tokenTransfers    TokenTransfer[]
-
-  @@map("transactions")
-  @@index([blockTime(sort: Desc)])                   // Optimized for time-series queries
-  @@index([signerAddress, blockTime(sort: Desc)])
+  @@index([blockTime(sort: Desc)])
+  @@index([kolAddress, blockTime(sort: Desc)])
   @@index([slot])
+  @@map("kol_transactions")
 }
 
-// Granular token balance changes - TimescaleDB hypertable  
-model TokenTransfer {
-  id                    BigInt   @id @default(autoincrement())  // BIGSERIAL for performance
-  transaction_signature String   @map("transaction_signature")
-  block_time            DateTime @map("block_time") @db.Timestamptz // Time dimension
-  wallet_address        String   @map("wallet_address")
-  token_mint_address    String   @map("token_mint_address")
-  amount_change_raw     BigInt   @map("amount_change_raw")     // Raw amount change (+ receive, - send)
-  pre_balance_raw       BigInt   @map("pre_balance_raw")
-  post_balance_raw      BigInt   @map("post_balance_raw")
-  usd_value_at_time     Decimal? @map("usd_value_at_time") @db.Decimal(20,8) // USD value at transaction time
-  instruction_index     Int?     @map("instruction_index")
-  created_at            DateTime @default(now()) @map("created_at") @db.Timestamptz
+model KolTokenTransfer {
+  id                   BigInt         @id @default(autoincrement())
+  transactionSignature String         @map("transaction_signature")
+  blockTime            DateTime       @map("block_time") @db.Timestamptz(6)
+  kolAddress           String         @map("kol_address")
+  tokenMintAddress     String         @map("token_mint_address")
+  amountChangeRaw      BigInt         @map("amount_change_raw")
+  preBalanceRaw        BigInt         @map("pre_balance_raw")
+  postBalanceRaw       BigInt         @map("post_balance_raw")
+  usdValueAtTime       Decimal?       @map("usd_value_at_time") @db.Decimal(20, 8)
+  instructionIndex     Int?           @map("instruction_index")
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  kolWallet            KolWallet      @relation(fields: [kolAddress], references: [address])
+  transaction          KolTransaction @relation(fields: [transactionSignature], references: [signature])
 
-  // Relations
-  transaction   Transaction @relation(fields: [transaction_signature], references: [signature])
-  wallet        Wallet      @relation(fields: [wallet_address], references: [address])
-  token         Token       @relation(fields: [token_mint_address], references: [mint_address])
-
-  @@map("token_transfers")
-  @@index([wallet_address, block_time(sort: Desc)])          // Critical for PNL calculations
-  @@index([token_mint_address, block_time(sort: Desc)])
-  @@index([wallet_address, token_mint_address, block_time(sort: Desc)])
+  @@index([kolAddress, blockTime(sort: Desc)])
+  @@index([tokenMintAddress, blockTime(sort: Desc)])
+  @@map("kol_token_transfers")
 }
 
-// AGGREGATED STATE TABLES (Denormalized Performance Cache)
+model KolPosition {
+  kolAddress         String    @map("kol_address")
+  tokenMintAddress   String    @map("token_mint_address")
+  currentBalanceRaw  BigInt    @map("current_balance_raw")
+  totalCostBasisUsd  Decimal   @map("total_cost_basis_usd") @db.Decimal(20, 8)
+  weightedAvgCostUsd Decimal   @map("weighted_avg_cost_usd") @db.Decimal(20, 8)
+  unrealizedPnlUsd   Decimal?  @map("unrealized_pnl_usd") @db.Decimal(20, 8)
+  lastUpdatedAt      DateTime  @default(now()) @map("last_updated_at") @db.Timestamptz(6)
+  kolWallet          KolWallet @relation(fields: [kolAddress], references: [address])
 
-// Current wallet holdings with cost basis
-model Position {
-  wallet_address        String   @map("wallet_address")
-  token_mint_address    String   @map("token_mint_address")
-  current_balance_raw   BigInt   @map("current_balance_raw")
-  total_cost_basis_usd  Decimal  @map("total_cost_basis_usd") @db.Decimal(20,8)
-  weighted_avg_cost_usd Decimal  @map("weighted_avg_cost_usd") @db.Decimal(20,8)
-  unrealized_pnl_usd    Decimal? @map("unrealized_pnl_usd") @db.Decimal(20,8)
-  last_updated_at       DateTime @default(now()) @map("last_updated_at") @db.Timestamptz
-
-  // Relations
-  wallet Wallet @relation(fields: [wallet_address], references: [address])
-  token  Token  @relation(fields: [token_mint_address], references: [mint_address])
-
-  @@id([wallet_address, token_mint_address])
-  @@map("positions")
-  @@index([wallet_address])
-  @@index([token_mint_address])
-  @@index([last_updated_at])
+  @@id([kolAddress, tokenMintAddress])
+  @@index([kolAddress])
+  @@index([tokenMintAddress])
+  @@index([lastUpdatedAt])
+  @@map("kol_positions")
 }
 
-// Pre-calculated PNL aggregates for leaderboards
-model PnlSnapshot {
-  walletAddress      String   @map("wallet_address")
-  period             String   // '1H', '1D', '7D', '30D'
-  ecosystem          String   // 'all', 'pump.fun', 'letsbonk.fun'
-  snapshotTimestamp  DateTime @default(now()) @map("snapshot_timestamp") @db.Timestamptz
-  realizedPnlUsd     Decimal  @map("realized_pnl_usd") @db.Decimal(20,8)
-  unrealizedPnlUsd   Decimal? @map("unrealized_pnl_usd") @db.Decimal(20,8)
-  totalPnlUsd        Decimal  @map("total_pnl_usd") @db.Decimal(20,8)
-  roiPercentage      Decimal? @map("roi_percentage") @db.Decimal(8,4)
-  winRate            Decimal? @map("win_rate") @db.Decimal(5,2)
-  totalTrades        Int      @map("total_trades")
-  totalVolumeUsd     Decimal? @map("total_volume_usd") @db.Decimal(20,8)
-  dataSource         String   @default("dune") @map("data_source")
-  sourceMetadata     Json?    @map("source_metadata")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+model KolPnlSnapshot {
+  kolAddress        String    @map("kol_address")
+  period            String
+  snapshotTimestamp DateTime  @default(now()) @map("snapshot_timestamp") @db.Timestamptz(6)
+  realizedPnlUsd    Decimal   @map("realized_pnl_usd") @db.Decimal(20, 8)
+  unrealizedPnlUsd  Decimal?  @map("unrealized_pnl_usd") @db.Decimal(20, 8)
+  totalPnlUsd       Decimal   @map("total_pnl_usd") @db.Decimal(20, 8)
+  roiPercentage     Decimal?  @map("roi_percentage") @db.Decimal(8, 4)
+  winRate           Decimal?  @map("win_rate") @db.Decimal(5, 2)
+  totalTrades       Int       @map("total_trades")
+  totalVolumeUsd    Decimal?  @map("total_volume_usd") @db.Decimal(20, 8)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  kolWallet         KolWallet @relation(fields: [kolAddress], references: [address])
 
-  // Relations
-  wallet Wallet @relation(fields: [walletAddress], references: [address])
-
-  @@id([walletAddress, period, ecosystem, snapshotTimestamp])
-  @@map("pnl_snapshots")
-  @@index([period, ecosystem, totalPnlUsd(sort: Desc), snapshotTimestamp(sort: Desc)])  // Leaderboard optimization
-  @@index([period, ecosystem, totalVolumeUsd(sort: Desc), snapshotTimestamp(sort: Desc)]) // Volume leaderboard
+  @@id([kolAddress, period, snapshotTimestamp])
+  @@index([period, totalPnlUsd(sort: Desc), snapshotTimestamp(sort: Desc)])
+  @@index([period, totalVolumeUsd(sort: Desc), snapshotTimestamp(sort: Desc)])
+  @@map("kol_pnl_snapshots")
 }
 
-// Pre-ranked leaderboard cache for instant API responses
-model LeaderboardCache {
-  leaderboardType String   @map("leaderboard_type")   // 'pnl', 'volume'
-  timeframe       String   // '1h', '1d', '7d', '30d'
-  ecosystem       String   // 'all', 'pump.fun', 'letsbonk.fun'
-  rank            Int
-  walletAddress   String   @map("wallet_address")
-  metric          Decimal  @db.Decimal(20,8)          // PNL or Volume value
-  calculatedAt    DateTime @default(now()) @map("calculated_at") @db.Timestamptz
-  expiresAt       DateTime @map("expires_at") @db.Timestamptz
+model KolRealizedPnlEvent {
+  id                          BigInt    @id @default(autoincrement())
+  kolAddress                  String    @map("kol_address")
+  tokenMintAddress            String    @map("token_mint_address")
+  closingTransactionSignature String    @map("closing_transaction_signature")
+  quantitySold                BigInt    @map("quantity_sold")
+  saleValueUsd                Decimal   @map("sale_value_usd") @db.Decimal(20, 8)
+  costBasisUsd                Decimal   @map("cost_basis_usd") @db.Decimal(20, 8)
+  realizedPnlUsd              Decimal   @map("realized_pnl_usd") @db.Decimal(20, 8)
+  holdDurationSeconds         Int?      @map("hold_duration_seconds")
+  roiPercentage               Decimal?  @map("roi_percentage") @db.Decimal(8, 4)
+  closedAt                    DateTime  @map("closed_at") @db.Timestamptz(6)
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  kolWallet                   KolWallet @relation(fields: [kolAddress], references: [address])
 
-  @@id([leaderboardType, timeframe, ecosystem, rank])
-  @@map("leaderboard_cache")
-  @@index([expiresAt])
+  @@index([kolAddress, closedAt(sort: Desc)])
+  @@index([tokenMintAddress, closedAt(sort: Desc)])
+  @@map("kol_realized_pnl_events")
 }
 
-// SUPPORTING TABLES
+model DuneLeaderboardCache {
+  period        String   @map("period")
+  rank          Int      @map("rank")
+  walletAddress String   @map("wallet_address")
+  pnlUsd        Decimal  @map("pnl_usd") @db.Decimal(20, 8)
+  winRate       Decimal? @map("win_rate") @db.Decimal(5, 2)
+  totalTrades   Int?     @map("total_trades")
+  notableWins   Json?    @map("notable_wins")
+  lastUpdated   DateTime @default(now()) @map("last_updated") @db.Timestamptz(6)
 
-// Algorithmic gem discovery results
+  @@id([period, rank])
+  @@index([period, rank])
+  @@index([period, pnlUsd(sort: Desc)])
+  @@index([lastUpdated])
+  @@map("dune_leaderboard_cache")
+}
+
+model Token {
+  mintAddress  String    @id @map("mint_address")
+  symbol       String?
+  name         String?
+  decimals     Int?
+  logoUri      String?   @map("logo_uri")
+  coingeckoId  String?   @map("coingecko_id")
+  isMemeToken  Boolean   @default(false) @map("is_meme_token")
+  isVerified   Boolean   @default(false) @map("is_verified")
+  launchDate   DateTime? @map("launch_date") @db.Timestamptz(6)
+  metadataJson Json?     @map("metadata_json")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([symbol])
+  @@index([isMemeToken])
+  @@index([launchDate])
+  @@map("tokens")
+}
+
 model GemsFeed {
-  token_mint_address       String   @map("token_mint_address")
-  discovery_timestamp      DateTime @default(now()) @map("discovery_timestamp") @db.Timestamptz
-  num_famous_buyers        Int      @map("num_famous_buyers")
-  famous_buyer_addresses   String[] @map("famous_buyer_addresses")
-  total_famous_volume_usd  Decimal? @map("total_famous_volume_usd") @db.Decimal(20,8)
-  confidence_score         Decimal  @map("confidence_score") @db.Decimal(3,2)  // 0.00-1.00
-  market_cap_at_discovery  Decimal? @map("market_cap_at_discovery") @db.Decimal(20,8)
-  is_active               Boolean  @default(true) @map("is_active")
-  metadata_json           Json?    @map("metadata_json")
+  tokenMintAddress     String   @map("token_mint_address")
+  discoveryTimestamp   DateTime @default(now()) @map("discovery_timestamp") @db.Timestamptz(6)
+  numFamousBuyers      Int      @map("num_famous_buyers")
+  famousBuyerAddresses String[] @map("famous_buyer_addresses")
+  totalFamousVolumeUsd Decimal? @map("total_famous_volume_usd") @db.Decimal(20, 8)
+  confidenceScore      Decimal  @map("confidence_score") @db.Decimal(3, 2)
+  marketCapAtDiscovery Decimal? @map("market_cap_at_discovery") @db.Decimal(20, 8)
+  isActive             Boolean  @default(true) @map("is_active")
+  metadataJson         Json?    @map("metadata_json")
 
-  // Relations
-  token Token @relation(fields: [token_mint_address], references: [mint_address])
-
-  @@id([token_mint_address, discovery_timestamp])
+  @@id([tokenMintAddress, discoveryTimestamp])
+  @@index([isActive, confidenceScore(sort: Desc), discoveryTimestamp(sort: Desc)])
   @@map("gems_feed")
-  @@index([is_active, confidence_score(sort: Desc), discovery_timestamp(sort: Desc)])
 }
-
-// Detailed trade closure audit trail
-model RealizedPnlEvent {
-  id                           BigInt   @id @default(autoincrement())
-  wallet_address               String   @map("wallet_address")
-  token_mint_address           String   @map("token_mint_address")
-  closing_transaction_signature String  @map("closing_transaction_signature")
-  quantity_sold                BigInt   @map("quantity_sold")
-  sale_value_usd               Decimal  @map("sale_value_usd") @db.Decimal(20,8)
-  cost_basis_usd               Decimal  @map("cost_basis_usd") @db.Decimal(20,8)
-  realized_pnl_usd             Decimal  @map("realized_pnl_usd") @db.Decimal(20,8)
-  hold_duration_seconds        Int?     @map("hold_duration_seconds")
-  roi_percentage               Decimal? @map("roi_percentage") @db.Decimal(8,4)
-  closed_at                    DateTime @map("closed_at") @db.Timestamptz
-  created_at                   DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  // Relations  
-  token Token @relation(fields: [token_mint_address], references: [mint_address])
-
-  @@map("realized_pnl_events")
-  @@index([wallet_address, closed_at(sort: Desc)])
-  @@index([token_mint_address, closed_at(sort: Desc)])
-} 
