@@ -24,6 +24,58 @@ export interface LeaderboardResponse {
   timestamp: string;
 }
 
+// KOL Leaderboard interfaces
+export interface KolLeaderboardEntry {
+  rank: number;
+  wallet_address: string;
+  curated_name: string;
+  twitter_handle: string;
+  total_pnl_usd: number;
+  realized_pnl_usd: number;
+  unrealized_pnl_usd: number;
+  roi_percentage: number;
+  win_rate: number;
+  total_trades: number;
+  total_volume_usd: number;
+  snapshot_timestamp: string;
+}
+
+export interface KolLeaderboardResponse {
+  success: boolean;
+  data: KolLeaderboardEntry[];
+  meta: {
+    timeframe: string;
+    count: number;
+    source: string;
+    last_updated: string;
+  };
+}
+
+// Ecosystem Leaderboard interfaces
+export interface EcosystemLeaderboardEntry {
+  rank: number;
+  wallet_address: string;
+  pnl_usd: number;
+  win_rate: number;
+  total_trades: number;
+  notable_wins: {
+    biggest_win: number;
+    best_roi: number;
+  } | null;
+  last_updated: string;
+}
+
+export interface EcosystemLeaderboardResponse {
+  success: boolean;
+  data: EcosystemLeaderboardEntry[];
+  meta: {
+    timeframe: string;
+    count: number;
+    source: string;
+    last_updated: string;
+  };
+}
+
 export interface ApiError {
   success: false;
   error: string;
@@ -66,7 +118,50 @@ class ApiService {
     return this.request('/health');
   }
 
-  // Leaderboard endpoints
+  // KOL Leaderboard (Live Engine)
+  async getKolLeaderboard(params: {
+    timeframe?: '1h' | '1d' | '7d' | '30d';
+    limit?: number;
+  } = {}): Promise<KolLeaderboardResponse> {
+    const searchParams = new URLSearchParams();
+    
+    if (params.timeframe) searchParams.append('timeframe', params.timeframe);
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = `/api/v1/leaderboard/kol${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request<KolLeaderboardResponse>(endpoint);
+  }
+
+  // Ecosystem Leaderboard (Dune Analytics)
+  async getEcosystemLeaderboard(params: {
+    timeframe?: '1h' | '1d' | '7d' | '30d';
+    limit?: number;
+  } = {}): Promise<EcosystemLeaderboardResponse> {
+    const searchParams = new URLSearchParams();
+    
+    // Convert timeframe to match API format
+    const timeframeMap: { [key: string]: string } = {
+      '1h': '1H',
+      '1d': '1D',
+      '7d': '7D',
+      '30d': '30D'
+    };
+    
+    if (params.timeframe) {
+      const apiTimeframe = timeframeMap[params.timeframe] || params.timeframe;
+      searchParams.append('timeframe', apiTimeframe);
+    }
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = `/api/v1/leaderboard/ecosystem${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request<EcosystemLeaderboardResponse>(endpoint);
+  }
+
+  // Legacy leaderboard endpoint (for backward compatibility)
   async getLeaderboard(params: {
     timeframe?: '1h' | '1d' | '7d' | '30d';
     ecosystem?: 'all' | 'pump.fun' | 'letsbonk.fun';
@@ -84,6 +179,11 @@ class ApiService {
     const endpoint = `/api/v1/leaderboard${queryString ? `?${queryString}` : ''}`;
     
     return this.request<LeaderboardResponse>(endpoint);
+  }
+
+  // System status
+  async getSystemStatus() {
+    return this.request('/api/v1/status');
   }
 
   // Bootstrap status
