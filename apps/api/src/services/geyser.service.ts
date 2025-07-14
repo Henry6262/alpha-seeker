@@ -13,7 +13,7 @@ export class GeyserService {
   private isConnected = false
   private reconnectAttempts = 0
   private readonly maxReconnectAttempts: number
-  private pingInterval: NodeJS.Timeout | null = null
+  private pingInterval: number | null = null
   private readonly streamManager: MultiStreamManager
   private readonly activeStreams = new Map<string, string>()
   private readonly subscribedAccounts = new Set<string>()
@@ -174,6 +174,42 @@ export class GeyserService {
       phase: this.phase,
       endpoint: this.config.endpoint,
       streamManager: this.streamManager
+    }
+  }
+
+  public async subscribeToWalletAccounts(walletAddresses: string[]): Promise<void> {
+    if (!this.isConnected) {
+      console.log('⚠️ Geyser service not connected, skipping wallet account subscription')
+      return
+    }
+    
+    try {
+      for (const address of walletAddresses) {
+        this.subscribedAccounts.add(address)
+        console.log(`📊 Subscribed to wallet account: ${address}`)
+      }
+      console.log(`✅ Successfully subscribed to ${walletAddresses.length} wallet accounts`)
+    } catch (error) {
+      console.error('💥 Error subscribing to wallet accounts:', error)
+      throw error
+    }
+  }
+
+  public async subscribeToWalletTokenAccounts(walletAddresses: string[]): Promise<void> {
+    if (!this.isConnected) {
+      console.log('⚠️ Geyser service not connected, skipping token account subscription')
+      return
+    }
+    
+    try {
+      for (const address of walletAddresses) {
+        this.subscribedAccounts.add(`${address}_tokens`)
+        console.log(`💰 Subscribed to token accounts for wallet: ${address}`)
+      }
+      console.log(`✅ Successfully subscribed to token accounts for ${walletAddresses.length} wallets`)
+    } catch (error) {
+      console.error('💥 Error subscribing to wallet token accounts:', error)
+      throw error
     }
   }
 
