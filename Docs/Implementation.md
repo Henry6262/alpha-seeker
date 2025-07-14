@@ -188,13 +188,119 @@ The Alpha Seeker project has successfully completed the decoupled architecture m
 5. **✅ Mobile Integration**: Frontend updated for new decoupled API structure
 6. **✅ Zero Hardcoded Data**: All data now comes from real trading analytics
 
-### 🎯 Next Sprint Goals
+## 🚀 NEXT PHASE: Real-Time Streaming Implementation
 
-1. **WebSocket Implementation**: Add real-time updates for KOL trading activity
-2. **Production Deployment**: Deploy decoupled system to production environment  
-3. **Performance Optimization**: Optimize query performance and caching strategies
-4. **Enhanced Analytics**: Add more sophisticated trading pattern analysis
-5. **User Interface Polish**: Refine mobile UI/UX for production readiness
+### Phase 2: Chainstack Yellowstone Geyser Integration
+
+Building on the solid foundation of the decoupled architecture, the next phase implements the complete real-time streaming system as outlined in our comprehensive backend technical specifications.
+
+### 📋 REAL-TIME STREAMING TASKS
+
+#### 12. Chainstack Yellowstone Geyser Service
+- **Status**: 📋 PENDING
+- **Priority**: HIGH - Foundation for all real-time features
+- **Scope**:
+  - Configure Chainstack $149/month plan with 5 gRPC streams
+  - Implement 5-stream architecture for 200 KOL wallet monitoring
+  - Setup @triton-one/yellowstone-grpc client with robust reconnection
+  - Configure SubscribeRequest filters for optimal efficiency
+  - Implement connection keep-alive and exponential backoff recovery
+
+#### 13. Message Queue Infrastructure
+- **Status**: 📋 PENDING
+- **Priority**: HIGH - Decouples ingestion from processing
+- **Scope**:
+  - Setup RabbitMQ or Redis Pub/Sub for high-velocity data buffering
+  - Implement raw_transactions queue with durable message handling
+  - Design feed_updates topic for real-time push notifications
+  - Configure queue monitoring and depth alerting
+
+#### 14. Transaction Processor Service Pool
+- **Status**: 📋 PENDING
+- **Priority**: CRITICAL - Core data processing engine
+- **Dependencies**: Message Queue Infrastructure
+- **Scope**:
+  - Implement worker pool consuming raw_transactions queue
+  - Integrate solana-dextrade-parser for Jupiter/Raydium/Pump.fun swaps
+  - Implement data enrichment with token metadata caching
+  - Setup high-performance batch inserts with PostgreSQL upserts
+  - Implement buy/sell detection and position tracking
+
+#### 15. PNL Calculation Engine
+- **Status**: 📋 PENDING
+- **Priority**: CRITICAL - Core business logic
+- **Dependencies**: Transaction Processor Service Pool
+- **Scope**:
+  - Implement Average Cost Basis accounting method
+  - Setup realized PNL calculation on sell transactions
+  - Implement scheduled unrealized PNL updates (60-second intervals)
+  - Integrate Jupiter Price API for real-time token pricing
+  - Update wallet_pnl table and Redis leaderboard simultaneously
+
+#### 16. Redis Leaderboard System
+- **Status**: 📋 PENDING
+- **Priority**: HIGH - Real-time ranking performance
+- **Scope**:
+  - Setup Redis Sorted Sets for sub-millisecond leaderboard queries
+  - Implement ZADD operations for PNL score updates
+  - Configure leaderboard:pnl sorted set management
+  - Setup Redis monitoring and persistence configuration
+
+#### 17. Server-Sent Events (SSE) Implementation
+- **Status**: 📋 PENDING
+- **Priority**: HIGH - Real-time frontend updates
+- **Dependencies**: Transaction Processor, Redis Leaderboard
+- **Scope**:
+  - Implement /api/v1/feed/{walletAddress} SSE endpoints
+  - Setup /events/leaderboard for live ranking updates
+  - Implement client connection management and push notifications
+  - Configure SSE service consuming feed_updates message queue
+
+#### 18. Gem Finder Service
+- **Status**: 📋 PENDING
+- **Priority**: MEDIUM - Advanced feature
+- **Dependencies**: Transaction Processor Service Pool
+- **Scope**:
+  - Implement new token discovery algorithm
+  - Setup Helius DAS API integration for token metadata
+  - Implement gem scoring based on KOL trading patterns
+  - Create /api/v1/gems endpoint with ranked results
+
+#### 19. Enhanced Mobile Real-Time Integration
+- **Status**: 📋 PENDING
+- **Priority**: MEDIUM - User experience enhancement
+- **Dependencies**: SSE Implementation
+- **Scope**:
+  - Update mobile app to consume SSE endpoints
+  - Implement EventSource connections for live feeds
+  - Setup real-time leaderboard updates with smooth animations
+  - Add live transaction notifications and gem alerts
+
+#### 20. Monitoring & Performance Optimization
+- **Status**: 📋 PENDING
+- **Priority**: HIGH - Production readiness
+- **Dependencies**: All streaming services
+- **Scope**:
+  - Setup Prometheus + Grafana monitoring stack
+  - Implement stream lag, queue depth, and API latency monitoring
+  - Configure alerting for critical system metrics
+  - Optimize database queries and batch processing performance
+
+### 🎯 Phase 2 Success Criteria
+
+1. **Real-Time Data Flow**: < 1 second latency from blockchain to UI
+2. **System Reliability**: 99.9% uptime with automatic error recovery
+3. **Performance Targets**: Sub-millisecond leaderboard queries, < 100ms API responses
+4. **Data Accuracy**: Precise PNL calculations with Average Cost Basis method
+5. **User Experience**: Smooth real-time updates without UI lag
+
+### 🔄 Implementation Strategy
+
+**Week 1-2**: Core Infrastructure (Geyser, Message Queue, Transaction Processor)
+**Week 3**: PNL Engine and Redis Leaderboard
+**Week 4**: SSE Implementation and Mobile Integration  
+**Week 5**: Gem Finder and Advanced Features
+**Week 6**: Monitoring, Testing, and Production Deployment
 
 ## Migration Benefits
 

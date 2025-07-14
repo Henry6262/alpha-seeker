@@ -121,6 +121,38 @@ Follow Official Documentation
 - For Next.js, focus on data fetching methods and routing conventions.
 - Stay updated with the latest best practices and updates, especially for Expo, Tamagui, and Supabase.
 
+## **ALPHA SEEKER REAL-TIME STREAMING REQUIREMENTS**
+
+### **Technology Stack - Phase 2 Implementation**
+- **Frontend:** React Native + Expo Router + React Native Paper
+- **Backend:** Node.js + Fastify + PostgreSQL + Redis Cache
+- **Database:** PostgreSQL + Prisma ORM + Redis Sorted Sets
+- **Real-time Data:** Chainstack Yellowstone gRPC + Message Queue (RabbitMQ/Redis Pub/Sub)
+- **Transaction Parsing:** solana-dextrade-parser for DEX swap detection (Jupiter/Raydium/Pump.fun)
+- **Token Pricing:** Jupiter Price API for real-time USD values
+- **Token Metadata:** Helius DAS API for enrichment and caching
+- **Real-time Updates:** Server-Sent Events (SSE) for live feeds
+- **Monitoring:** Prometheus + Grafana for system health
+- **PNL Calculations:** Average Cost Basis accounting method
+- **State Management:** Zustand
+
+### **Real-Time Architecture Requirements**
+- **5-Stream Geyser Setup:** Monitor 200 KOL wallets with 50 accounts per stream
+- **Message Queue Buffering:** Decouple high-velocity ingestion from processing
+- **Worker Pool Processing:** Horizontally scalable transaction processor services
+- **Redis Leaderboard:** Sub-millisecond ranking queries with Sorted Sets
+- **SSE Push Updates:** Real-time frontend updates without polling
+- **Performance Targets:** < 1 second latency from blockchain to UI
+- **Error Recovery:** Exponential backoff reconnection with keep-alive
+
+### **Microservice Implementation Standards**
+- **Geyser Ingestor Service:** Persistent gRPC connections with robust reconnection
+- **Transaction Processor Pool:** Parse, enrich, and normalize blockchain data
+- **PNL Calculation Engine:** Real-time profit/loss with Average Cost Basis
+- **SSE Service:** Server-Sent Events for live updates
+- **Gem Finder Service:** New token discovery based on KOL patterns
+- **Monitoring Service:** System health and performance metrics
+
 ## **MANDATORY WORKFLOW STANDARDS - ALWAYS FOLLOW**
 
 ### **Proactive Error Handling & Automation**
@@ -142,11 +174,13 @@ Follow Official Documentation
 ### **Documentation-First Development**
 - **BEFORE ANY TASK:** Consult documentation in this order:
   1. `Docs/project.md` - Master PRD and requirements
-  2. `Docs/Database_Schema.md` - Database structure reference
-  3. `Docs/Implementation.md` - Current sprint tasks and progress
-  4. `Docs/project_structure.md` - Code organization guidelines
-  5. `Docs/UI_UX_doc.md` - Design system requirements
-  6. `Docs/Bug_tracking.md` - Known issues and solutions
+  2. `Docs/back-end/backend_logic.md` - Real-time streaming technical specifications
+  3. `Docs/back-end/backend-impl-details.md` - Implementation details and architecture
+  4. `Docs/Database_Schema.md` - Database structure reference
+  5. `Docs/Implementation.md` - Current sprint tasks and progress
+  6. `Docs/project_structure.md` - Code organization guidelines
+  7. `Docs/UI_UX_doc.md` - Design system requirements
+  8. `Docs/Bug_tracking.md` - Known issues and solutions
 
 ### **Quality Assurance Standards**
 - **MANDATORY** functional testing before task completion

@@ -12,12 +12,18 @@ Alpha-Seeker is a sophisticated Solana trading intelligence platform built with 
 1. **Phase 1**: Bootstrap with Dune Analytics for rapid market validation
 2. **Phase 2**: Deploy Chainstack Geyser RPC for competitive advantage
 
-### Technology Stack (Current Implementation)
+### Technology Stack (Phase 2 Implementation)
 - **Frontend**: React Native + Expo Router + React Native Paper
 - **Backend**: Node.js + Fastify + PostgreSQL
-- **Database**: PostgreSQL + Prisma ORM (SQLite for development)
-- **Real-time Data**: Chainstack Yellowstone gRPC Geyser (planned)
+- **Database**: PostgreSQL + Prisma ORM + Redis Cache
+- **Real-time Data**: Chainstack Yellowstone gRPC Geyser (implementing)
 - **Historical Data**: Dune Analytics API (implemented)
+- **Message Queue**: RabbitMQ or Redis Pub/Sub (implementing)
+- **Transaction Parsing**: solana-dextrade-parser (implementing)
+- **Token Pricing**: Jupiter Price API (implementing)
+- **Token Metadata**: Helius DAS API (implementing)
+- **Real-time Updates**: Server-Sent Events (SSE) (implementing)
+- **Monitoring**: Prometheus + Grafana (implementing)
 - **State Management**: Zustand
 - **Payments**: Solana Pay SDK (planned)  
 - **Notifications**: Firebase Cloud Messaging (planned)
@@ -104,47 +110,110 @@ solana-mobile-expo-template-main/
 
 ## Core Architecture Components
 
-### 1. Database Layer (PostgreSQL + TimescaleDB)
-**Purpose**: High-performance time-series data storage and retrieval
+### 1. Real-Time Data Ingestion Layer
+**Purpose**: High-throughput, low-latency blockchain data streaming
 
-**Key Tables**:
-- `wallets`: Tracked wallet addresses and metadata
-- `transactions`: Chronological transaction events
-- `token_transfers`: Granular token balance changes
-- `positions`: Current holdings and cost basis
-- `pnl_snapshots`: Pre-calculated leaderboard data
-- `gems_feed`: Discovered gem tokens
-- `realized_pnl_events`: Individual trade P&L records
+**Components**:
+- **Geyser Ingestor Service**: Persistent gRPC connections to Chainstack Yellowstone
+- **Message Queue**: RabbitMQ/Redis Pub/Sub buffer for high-velocity data
+- **Stream Management**: 5-stream architecture monitoring 200 KOL wallets
+- **Connection Resilience**: Exponential backoff reconnection with keep-alive
 
 **Features**:
-- TimescaleDB for time-series optimization
-- Event-driven architecture with PostgreSQL NOTIFY/LISTEN
-- Weighted Average Cost (WAC) PNL calculations
+- 50 accounts per stream filter optimization
+- Commitment level 'confirmed' for speed/reliability balance
+- Automatic failover and stream health monitoring
 
-### 2. API Layer (Fastify + Node.js)
+### 2. Transaction Processing Layer
+**Purpose**: Parse, enrich, and normalize blockchain transaction data
+
+**Components**:
+- **Transaction Processor Pool**: Worker services consuming message queue
+- **DEX Parser**: solana-dextrade-parser for Jupiter/Raydium/Pump.fun swaps
+- **Data Enrichment**: Jupiter Price API + Helius DAS API integration
+- **Batch Processing**: High-performance PostgreSQL upserts
+
+**Features**:
+- Buy/sell detection and classification
+- Token metadata caching strategy
+- Real-time price enrichment
+- Horizontal scaling capability
+
+### 3. Database Layer (PostgreSQL + Redis)
+**Purpose**: Durable storage and high-performance caching
+
+**PostgreSQL Tables**:
+- `kol_wallets`: Tracked wallet addresses and metadata
+- `kol_transactions`: Chronological transaction events
+- `kol_token_transfers`: Granular token balance changes
+- `kol_positions`: Current holdings and cost basis
+- `kol_pnl_snapshots`: Pre-calculated leaderboard data
+- `gems_feed`: Discovered gem tokens
+- `kol_realized_pnl_events`: Individual trade P&L records
+
+**Redis Cache**:
+- `leaderboard:pnl`: Sorted Sets for sub-millisecond ranking queries
+- Token metadata cache
+- Real-time price cache
+
+**Features**:
+- Average Cost Basis PNL calculations
+- High-performance batch inserts with upserts
+- Redis Sorted Sets for instant leaderboard queries
+
+### 4. PNL Calculation Engine
+**Purpose**: Real-time profit/loss calculations with Average Cost Basis method
+
+**Components**:
+- **Realized PNL Calculator**: Triggered on sell transactions
+- **Unrealized PNL Scheduler**: 60-second intervals for current holdings
+- **Position Tracker**: Buy/sell detection and balance updates
+- **Price Integration**: Jupiter API for real-time token pricing
+
+**Features**:
+- Average Cost Basis accounting method
+- Dual updates: PostgreSQL + Redis leaderboard
+- Real-time PNL recalculation on trades
+- Multi-timeframe snapshots (1H, 1D, 7D, 30D)
+
+### 5. API Layer (Fastify + Node.js)
 **Purpose**: High-performance REST API with real-time capabilities
 
 **Key Services**:
-- **Dune Service**: Historical data integration
-- **Geyser Service**: Real-time blockchain data streaming
-- **PNL Service**: Profit/Loss calculation engine
-- **Gems Service**: Alpha trader discovery algorithm
+- **Dune Service**: Historical data integration (implemented)
+- **Geyser Service**: Real-time blockchain data streaming (implementing)
+- **PNL Service**: Profit/Loss calculation engine (implementing)
+- **Gems Service**: Alpha trader discovery algorithm (implementing)
+- **SSE Service**: Server-Sent Events for real-time updates (implementing)
 
-**Endpoints**:
-- `GET /api/v1/leaderboard?period=7d` - PNL leaderboards
-- `WebSocket /live-trades` - Real-time trades feed
+**REST Endpoints**:
+- `GET /api/v1/leaderboard/kol` - KOL PNL leaderboards
+- `GET /api/v1/leaderboard/ecosystem` - Ecosystem leaderboards (Dune data)
 - `GET /api/v1/gems` - Discovered gems feed
 - `GET /api/v1/wallets/{address}/positions` - Wallet positions
+- `GET /api/v1/status` - System health monitoring
 
-### 3. Frontend Layer (React Native + React Native Paper)
-**Purpose**: Cross-platform mobile application
+**SSE Endpoints**:
+- `GET /api/v1/feed/{walletAddress}` - Live transaction feed per wallet
+- `GET /events/leaderboard` - Real-time leaderboard updates
+- `GET /events/positions/{walletAddress}` - Live position updates
+
+### 6. Frontend Layer (React Native + React Native Paper)
+**Purpose**: Cross-platform mobile application with real-time updates
 
 **Key Features**:
 - Multi-timeframe PNL leaderboards (implemented)
-- Real-time trades feed with WebSocket connections (planned)
+- Real-time trades feed with SSE connections (implementing)
+- Live leaderboard updates with smooth animations (implementing)
 - Token holdings bubble chart visualizations (planned)
-- "Gems" discovery interface with confidence scores (planned)
-- Wallet profile pages with performance metrics (planned)
+- "Gems" discovery interface with confidence scores (implementing)
+- Wallet profile pages with performance metrics (implementing)
+
+**Real-Time Integration**:
+- EventSource API for SSE connections
+- Live transaction notifications
+- Real-time leaderboard rank changes
+- Gem discovery alerts
 
 **State Management**: Zustand for efficient state handling
 **UI Components**: React Native Paper for Material Design theming
