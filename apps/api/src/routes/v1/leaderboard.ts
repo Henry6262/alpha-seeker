@@ -1,16 +1,19 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { prisma } from '../../lib/prisma'
-
-interface LeaderboardQuery {
-  timeframe?: '1h' | '1d' | '7d' | '30d'
-  ecosystem?: 'all' | 'pump.fun' | 'letsbonk.fun'
-  type?: 'pnl' | 'volume' // Volume requests will be rejected
-  limit?: string
-}
+import { prisma } from '../../lib/prisma.js'
+import { 
+  LeaderboardQuery, 
+  LeaderboardResponse, 
+  LeaderboardEntry, 
+  WalletProfileResponse, 
+  WalletProfile 
+} from '../../types/leaderboard.types.js'
 
 export async function leaderboardRoutes(fastify: FastifyInstance) {
   // Get leaderboard data
-  fastify.get('/', async (request: FastifyRequest<{ Querystring: LeaderboardQuery }>, reply: FastifyReply) => {
+  fastify.get('/', async (
+    request: FastifyRequest<{ Querystring: LeaderboardQuery }>, 
+    reply: FastifyReply
+  ): Promise<LeaderboardResponse<LeaderboardEntry>> => {
     const { 
       timeframe = '1d', 
       ecosystem = 'all', 
@@ -20,24 +23,22 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
     
     // Validate type - only PNL supported in MVP
     if (request.query.type === 'volume') {
-      return reply.status(400).send({
+      reply.status(400)
+      return {
         success: false,
-        error: 'Volume leaderboard has been removed from MVP. Only PNL leaderboard is supported.'
-      })
+        data: [],
+        error: 'Volume leaderboard has been removed from MVP. Only PNL leaderboard is supported.',
+        timestamp: new Date().toISOString()
+      }
     }
     
     // Convert limit to integer
     const limitNumber = parseInt(limit, 10) || 100
 
     try {
-      const leaderboard = await prisma.leaderboardCache.findMany({
+      const leaderboard = await prisma.duneLeaderboardCache.findMany({
         where: {
-          leaderboardType: type,
-          timeframe: timeframe,
-          ecosystem: ecosystem,
-          expiresAt: {
-            gt: new Date()
-          }
+          period: timeframe.toUpperCase()
         },
         orderBy: {
           rank: 'asc'
@@ -45,9 +46,19 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
         take: limitNumber
       })
 
+      const leaderboardData: LeaderboardEntry[] = leaderboard.map((entry: any) => ({
+        rank: entry.rank,
+        wallet_address: entry.walletAddress,
+        pnl_usd: entry.pnlUsd.toNumber(),
+        win_rate: entry.winRate?.toNumber() || 0,
+        total_trades: entry.totalTrades || 0,
+        notable_wins: entry.notableWins,
+        last_updated: entry.lastUpdated?.toISOString()
+      }))
+
       return {
         success: true,
-        data: leaderboard,
+        data: leaderboardData,
         filters: {
           timeframe,
           ecosystem,
@@ -60,6 +71,7 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
       reply.status(500)
       return {
         success: false,
+        data: [],
         error: 'Failed to fetch leaderboard data',
         timestamp: new Date().toISOString()
       }
@@ -67,12 +79,15 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
   })
 
   // Get wallet profile
-  fastify.get('/wallet/:address', async (request: FastifyRequest<{ Params: { address: string } }>, reply: FastifyReply) => {
+  fastify.get('/wallet/:address', async (
+    request: FastifyRequest<{ Params: { address: string } }>, 
+    reply: FastifyReply
+  ): Promise<WalletProfileResponse> => {
     const { address } = request.params
 
     try {
       // Get wallet with recent transactions from PNL snapshots
-      const wallet = await prisma.wallet.findUnique({
+      const wallet = await prisma.kolWallet.findUnique({
         where: { address },
         include: {
           pnlSnapshots: {
@@ -96,19 +111,20 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
       // Get recent PNL data
       const recentPnl = wallet.pnlSnapshots.length > 0 ? wallet.pnlSnapshots[0] : null
 
+      const walletProfile: WalletProfile = {
+        address: wallet.address,
+        curatedName: wallet.curatedName,
+        twitterHandle: wallet.twitterHandle,
+        totalPnl: recentPnl?.realizedPnlUsd?.toNumber() || 0,
+        roiPercentage: recentPnl?.roiPercentage?.toNumber() || 0,
+        winRate: recentPnl?.winRate?.toNumber() || 0,
+        totalTrades: recentPnl?.totalTrades || 0,
+        recentSnapshots: wallet.pnlSnapshots.slice(0, 5)
+      }
+
       return {
         success: true,
-        data: {
-          address: wallet.address,
-          curatedName: wallet.curatedName,
-          twitterHandle: wallet.twitterHandle,
-          isFamousTrader: wallet.isFamousTrader,
-          totalPnl: recentPnl?.realizedPnlUsd || 0,
-          roiPercentage: recentPnl?.roiPercentage || 0,
-          winRate: recentPnl?.winRate || 0,
-          totalTrades: recentPnl?.totalTrades || 0,
-          recentSnapshots: wallet.pnlSnapshots.slice(0, 5)
-        },
+        data: walletProfile,
         timestamp: new Date().toISOString()
       }
     } catch (error) {
