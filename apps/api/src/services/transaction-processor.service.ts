@@ -93,10 +93,12 @@ export class TransactionProcessorService {
   private async subscribeToTransactionQueue(): Promise<void> {
     console.log('📥 Subscribing to raw transaction queue...')
     
-    await this.messageQueue.subscribe('raw-transactions', async (transactionData: GeyserTransactionUpdate) => {
+    await this.messageQueue.subscribe('raw-transactions', async (messageData: any) => {
       if (!this.isProcessing) return
       
       try {
+        // Extract transaction data from QueueMessage payload
+        const transactionData: GeyserTransactionUpdate = messageData.payload || messageData
         await this.processTransaction(transactionData)
         this.processedCount++
         
