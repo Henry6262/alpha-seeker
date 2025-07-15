@@ -1,52 +1,9 @@
-// =================================
-// Re-export all types for easy importing
-// =================================
-
-// API Types (with specific imports to avoid conflicts)
-export { 
-  type Timeframe, 
-  type LeaderboardType, 
-  type Ecosystem, 
-  type DataSource,
-  type LeaderboardQuery as ApiLeaderboardQuery,
-  type WalletTrackingRequest,
-  type WalletTrackingResponse,
-  type ApiResponse,
-  type PaginationQuery,
-  type TimestampRange,
-  type ErrorDetails
-} from './api.types.js'
-
-// Dune Types
+// Re-export types from other modules for convenience
+export * from './geyser.types.js'
 export * from './dune.types.js'
-
-// Leaderboard Types (with specific imports)
-export {
-  type LeaderboardQuery as LeaderboardRequestQuery,
-  type LeaderboardEntry,
-  type KolLeaderboardEntry,
-  type LeaderboardResponse,
-  type WalletProfile,
-  type WalletProfileResponse
-} from './leaderboard.types.js'
-
-// Wallet Types
 export * from './wallet.types.js'
-
-// Geyser Types (including validation functions)
-export {
-  type GeyserConnection,
-  type GeyserStream,
-  type GeyserTransactionUpdate,
-  type GeyserAccountUpdate,
-  type GeyserConfig,
-  type GeyserStatus,
-  type StreamAllocation,
-  type MultiStreamManager,
-  isValidSolanaAddress,
-  filterValidAddresses,
-  validateWalletAddresses
-} from './geyser.types.js'
+export * from './leaderboard.types.js'
+export * from './api.types.js'
 
 // =================================
 // DEX Program Constants
@@ -157,12 +114,25 @@ export interface TradeHistory {
 
 export interface QueueMessage {
   id: string
-  type: 'transaction' | 'account' | 'price' | 'leaderboard'
+  type: 'transaction' | 'account' | 'price' | 'leaderboard' | 'feed_update' | 'pnl_update' | 'gem_discovery'
   data: any
+  payload?: any // Allow payload as optional for backwards compatibility
   timestamp: Date
   priority: number
   retryCount: number
 }
+
+// Redis configuration interface
+export interface RedisConfig {
+  url: string
+  host?: string
+  port?: number
+  password?: string
+  db?: number
+}
+
+// Redis leaderboard entry type alias
+export type RedisLeaderboardEntry = LeaderboardEntry
 
 export interface ProcessingMetrics {
   processedCount: number
@@ -219,7 +189,7 @@ export interface GemCandidate {
 export interface SSEConnection {
   id: string
   clientId: string
-  walletAddress: string
+  walletAddress?: string // Make optional since not all connections need a wallet
   channels: string[]
   lastActivity: Date
   isActive: boolean

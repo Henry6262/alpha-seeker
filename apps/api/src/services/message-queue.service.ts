@@ -209,14 +209,15 @@ export class MessageQueueService {
     
     this.subscriberRedis.on('message', (channel: string, message: string) => {
       try {
-        const data = JSON.parse(message)
+        const queueMessage = JSON.parse(message)
         const channelName = channel.replace('channel:', '')
         
         const callbacks = this.subscribers.get(channelName)
         if (callbacks) {
           callbacks.forEach(callback => {
             try {
-              callback(data)
+              // Pass the payload data, not the entire QueueMessage wrapper
+              callback(queueMessage.payload)
             } catch (error) {
               console.error(`❌ Callback error for channel ${channelName}:`, error)
             }

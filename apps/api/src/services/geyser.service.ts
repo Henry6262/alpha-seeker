@@ -369,8 +369,10 @@ export class GeyserService {
         // Process transaction update
         const txUpdate: GeyserTransactionUpdate = {
           signature,
-          slot: update.transaction.slot,
-          blockTime: new Date(update.transaction.block_time * 1000),
+          slot: parseInt(update.transaction.slot) || 0,
+          blockTime: update.transaction.block_time 
+            ? new Date(update.transaction.block_time * 1000) 
+            : new Date(), // Use current time if block_time is missing
           transaction: update.transaction,
           accounts: update.transaction.transaction?.message?.account_keys || []
         }
@@ -534,8 +536,18 @@ export class GeyserService {
       phase: this.phase,
       endpoint: this.config.endpoint,
       streamManager: {
-        ...this.streamManager,
-        totalStreams: activeAllocations
+        allocations: this.streamManager.allocations.map(allocation => ({
+          streamId: allocation.streamId,
+          walletAddresses: allocation.walletAddresses,
+          accountCount: allocation.accountCount,
+          isActive: allocation.isActive,
+          reconnectAttempts: allocation.reconnectAttempts,
+          lastError: allocation.lastError
+          // Exclude 'stream' property to avoid circular references
+        })),
+        totalWallets: this.streamManager.totalWallets,
+        totalStreams: activeAllocations,
+        maxCapacity: this.streamManager.maxCapacity
       }
     }
   }

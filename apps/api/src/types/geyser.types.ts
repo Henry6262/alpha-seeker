@@ -23,7 +23,7 @@ export interface GeyserTransactionUpdate {
   signature: string
   slot: number
   blockTime: Date
-  transaction: any // Raw transaction data
+  transaction: any // Raw transaction data from Yellowstone
   accounts: string[]
 }
 
