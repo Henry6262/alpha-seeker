@@ -24,6 +24,7 @@ interface TokenMetadata {
   symbol: string
   decimals: number
   logoUri?: string
+  [key: string]: any // Index signature for Prisma JSON compatibility
 }
 
 interface PnlUpdate {

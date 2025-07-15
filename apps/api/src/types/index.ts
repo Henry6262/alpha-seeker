@@ -66,6 +66,20 @@ export const DEX_PROGRAMS = {
   PHOENIX: 'PhoeNiXZ8ByJGLkxNfZRnkUfjvmuYqLR89jjFHGqdXY'
 } as const
 
+// Export program IDs as array for type-safe includes checks
+export const DEX_PROGRAM_IDS = Object.values(DEX_PROGRAMS)
+
+// Type-safe helper function to check if a string is a known DEX program
+export function isDexProgram(programId: string): boolean {
+  return DEX_PROGRAM_IDS.includes(programId as any)
+}
+
+// Type-safe helper to get DEX program name from ID
+export function getDexProgramName(programId: string): string {
+  const entry = Object.entries(DEX_PROGRAMS).find(([, id]) => id === programId)
+  return entry ? entry[0] : 'UNKNOWN'
+}
+
 // =================================
 // Message Queue Types
 // =================================
