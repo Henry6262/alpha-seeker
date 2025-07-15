@@ -112,22 +112,19 @@ export class DuneService {
    * Populate LeaderboardCache with ecosystem data
    */
   async refreshEcosystemLeaderboard(): Promise<{
-    entries_1h: number
     entries_1d: number
     entries_7d: number
     entries_30d: number
   }> {
     console.log('🔄 Refreshing ecosystem leaderboard cache...')
     
-    const timeframes: Array<{ dune: '1 hour' | '1 day' | '7 days' | '30 days', period: string }> = [
-      { dune: '1 hour', period: '1H' },
+    const timeframes: Array<{ dune: '1 day' | '7 days' | '30 days', period: string }> = [
       { dune: '1 day', period: '1D' },
       { dune: '7 days', period: '7D' },
       { dune: '30 days', period: '30D' }
     ]
 
     const results = {
-      entries_1h: 0,
       entries_1d: 0,
       entries_7d: 0,
       entries_30d: 0
@@ -166,8 +163,7 @@ export class DuneService {
         console.log(`✅ Inserted ${entryCount} entries for ${period}`)
 
         // Update results
-        if (period === '1H') results.entries_1h = entryCount
-        else if (period === '1D') results.entries_1d = entryCount
+        if (period === '1D') results.entries_1d = entryCount
         else if (period === '7D') results.entries_7d = entryCount
         else if (period === '30D') results.entries_30d = entryCount
 
@@ -217,7 +213,7 @@ export class DuneService {
           })
 
           // Create initial PNL snapshots for this KOL
-          const timeframes = ['1H', '1D', '7D', '30D']
+          const timeframes = ['1D', '7D', '30D']
           for (const period of timeframes) {
             const basePnl = trader.total_realized_profit_usd * (period === '7D' ? 1 : Math.random() * 0.8 + 0.2)
             const realizedPnl = basePnl * (0.7 + Math.random() * 0.3)
@@ -282,7 +278,7 @@ export class DuneService {
    * Complete bootstrap process for decoupled architecture
    */
   async executeDecoupledBootstrap(): Promise<{
-    ecosystemEntries: { entries_1h: number, entries_1d: number, entries_7d: number, entries_30d: number }
+      ecosystemEntries: { entries_1d: number, entries_7d: number, entries_30d: number }
     kolWallets: { populated: number, existing: number }
   }> {
     console.log('🚀 Executing decoupled architecture bootstrap...')

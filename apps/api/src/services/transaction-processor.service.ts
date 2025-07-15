@@ -43,6 +43,10 @@ export class TransactionProcessorService {
   private isProcessing = false
   private processedCount = 0
   private errorCount = 0
+  private rpcCallCount = 0
+  private lastRpcReset = Date.now()
+  private readonly RPC_RATE_LIMIT = 100 // Calls per minute
+  private readonly RPC_RETRY_DELAYS = [500, 1000, 2000, 5000] // Exponential backoff
 
   // Token metadata cache
   private tokenCache = new Map<string, TokenMetadata>()
@@ -109,6 +113,7 @@ export class TransactionProcessorService {
   private async processTransaction(txUpdate: GeyserTransactionUpdate): Promise<void> {
     try {
       // Parse transaction for DEX swaps
+      console.log('🔍 Debug - Processing transaction:', txUpdate)
       const swaps = await this.parseTransactionForSwaps(txUpdate)
       
       if (swaps.length === 0) {
@@ -132,12 +137,28 @@ export class TransactionProcessorService {
     const swaps: SwapData[] = []
     
     try {
-      // Get transaction details from Solana RPC
-      const txDetails = await this.connection.getParsedTransaction(txUpdate.signature, {
-        maxSupportedTransactionVersion: 0
-      })
+      console.log('🔍 Debug - Parsing transaction:', txUpdate.signature)
+      
+      if (!txUpdate.signature) {
+        console.log('⚠️ Transaction missing signature, skipping parse...')
+        return swaps
+      }
+      
+      // Check RPC rate limit before making call
+      if (!this.canMakeRpcCall()) {
+        console.log('⚠️ RPC rate limit reached, skipping transaction parse...')
+        return swaps
+      }
+      
+      // Get transaction details from Solana RPC with retry logic
+      const txDetails = await this.getRpcWithRetry(() => 
+        this.connection.getParsedTransaction(txUpdate.signature, {
+          maxSupportedTransactionVersion: 0
+        })
+      )
       
       if (!txDetails || !txDetails.meta || txDetails.meta.err) {
+        console.log(`⚠️ Transaction ${txUpdate.signature.slice(0, 8)}... failed or not found`)
         return swaps // Transaction failed or not found
       }
       
@@ -154,6 +175,8 @@ export class TransactionProcessorService {
       if (involvedPrograms.length === 0) {
         return swaps // No DEX programs involved
       }
+      
+      console.log(`🔍 Found DEX programs in transaction: ${involvedPrograms.map(p => getDexProgramName(p)).join(', ')}`)
       
       // Parse instructions for swap patterns
       for (const instruction of transaction.message.instructions) {
@@ -186,6 +209,40 @@ export class TransactionProcessorService {
     }
     
     return swaps
+  }
+
+  private canMakeRpcCall(): boolean {
+    const now = Date.now()
+    
+    // Reset counter every minute
+    if (now - this.lastRpcReset > 60000) {
+      this.rpcCallCount = 0
+      this.lastRpcReset = now
+    }
+    
+    return this.rpcCallCount < this.RPC_RATE_LIMIT
+  }
+
+  private async getRpcWithRetry<T>(rpcCall: () => Promise<T>): Promise<T> {
+    this.rpcCallCount++
+    
+    for (let attempt = 0; attempt < this.RPC_RETRY_DELAYS.length; attempt++) {
+      try {
+        return await rpcCall()
+      } catch (error: any) {
+        if (error?.message?.includes('429') || error?.message?.includes('Too Many Requests')) {
+          const delay = this.RPC_RETRY_DELAYS[attempt]
+          console.log(`⏳ RPC rate limited, retrying after ${delay}ms delay (attempt ${attempt + 1}/${this.RPC_RETRY_DELAYS.length})...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // For non-rate-limit errors, throw immediately
+        throw error
+      }
+    }
+    
+    throw new Error('RPC call failed after all retry attempts')
   }
 
   private async parseSwapInstruction(
@@ -598,13 +655,23 @@ export class TransactionProcessorService {
     errorCount: number
     cacheSize: number
     priceCache: number
+    rpcMetrics: {
+      callsThisMinute: number
+      rateLimit: number
+      canMakeCall: boolean
+    }
   } {
     return {
       isProcessing: this.isProcessing,
       processedCount: this.processedCount,
       errorCount: this.errorCount,
       cacheSize: this.tokenCache.size,
-      priceCache: this.priceCache.size
+      priceCache: this.priceCache.size,
+      rpcMetrics: {
+        callsThisMinute: this.rpcCallCount,
+        rateLimit: this.RPC_RATE_LIMIT,
+        canMakeCall: this.canMakeRpcCall()
+      }
     }
   }
 }

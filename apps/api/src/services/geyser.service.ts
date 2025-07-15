@@ -1,4 +1,5 @@
 import Client, { SubscribeRequest } from '@triton-one/yellowstone-grpc'
+import bs58 from 'bs58'
 import { appConfig } from '../config/index.js'
 import { 
   GeyserConfig, 
@@ -6,7 +7,9 @@ import {
   MultiStreamManager,
   StreamAllocation,
   GeyserTransactionUpdate,
-  DEX_PROGRAMS
+  DEX_PROGRAMS,
+  validateWalletAddresses,
+  isValidSolanaAddress
 } from '../types/index.js'
 import { MessageQueueService } from './message-queue.service.js'
 import { prisma } from '../lib/prisma.js'
@@ -23,6 +26,7 @@ export class GeyserService {
   private readonly subscribedAccounts = new Set<string>()
   private phase: 'Phase 1 - Dune Analytics' | 'Phase 2 - Real-time Streaming' = 'Phase 1 - Dune Analytics'
   private messageQueue: MessageQueueService
+  private isShuttingDown = false
 
   constructor() {
     this.config = {
@@ -33,7 +37,7 @@ export class GeyserService {
       chainstackApiKey: appConfig.geyser.chainstackApiKey || '',
       pingIntervalMs: appConfig.geyser.pingIntervalMs || 10000,
       maxAccountsPerStream: appConfig.geyser.maxAccountsPerStream || 50,
-      maxConcurrentStreams: appConfig.geyser.maxConcurrentStreams || 5,
+      maxConcurrentStreams: appConfig.geyser.maxConcurrentStreams || 3, // Reduced to be safer with Chainstack limits
       reconnectMaxAttempts: appConfig.geyser.reconnectMaxAttempts || 5
     }
     
@@ -51,6 +55,7 @@ export class GeyserService {
   public async start(): Promise<void> {
     console.log('🚀 Starting Geyser service for Phase 2 real-time streaming...')
     this.phase = 'Phase 2 - Real-time Streaming'
+    this.isShuttingDown = false
     await this.connect()
   }
 
@@ -76,13 +81,12 @@ export class GeyserService {
       }
 
       // Format endpoint properly for Chainstack
-      const formattedEndpoint = `https://${this.config.endpoint.replace(/^https?:\/\//, '')}`
       
-      console.log(`🔑 Connecting to: ${formattedEndpoint}`)
+      console.log(`🔑 Connecting to: ${this.config.endpoint}`)
       console.log(`🔑 Token configured: ${this.config.token ? 'Yes' : 'No'}`)
       
       // Create client with X-Token authentication
-      this.client = new Client(formattedEndpoint, this.config.token, {
+      this.client = new Client(this.config.endpoint, this.config.token, {
         'grpc.max_receive_message_length': 64 * 1024 * 1024,
         'grpc.max_send_message_length': 64 * 1024 * 1024,
         'grpc.keepalive_time_ms': 30000,
@@ -92,9 +96,10 @@ export class GeyserService {
         'grpc.http2.min_time_between_pings_ms': 10000,
         'grpc.http2.min_ping_interval_without_data_ms': 5000
       })
+            
       
-              // Test connection with ping
-        await this.client.ping(1)
+      // Test connection with ping
+      await this.client.ping(1)
       
       console.log('✅ Successfully connected to Chainstack Yellowstone gRPC!')
       
@@ -106,12 +111,12 @@ export class GeyserService {
 
   private async setupMultiStreamArchitecture(): Promise<void> {
     try {
-      console.log('🏗️ Setting up multi-stream architecture for 200 KOL wallets...')
+      console.log('🏗️ Setting up multi-stream architecture for KOL wallets...')
       
       // Get KOL wallets from database
       const kolWallets = await prisma.kolWallet.findMany({
         select: { address: true },
-        take: 200 // Limit to 200 for Chainstack plan
+        take: this.config.maxConcurrentStreams * this.config.maxAccountsPerStream // Respect stream limits
       })
       
       if (kolWallets.length === 0) {
@@ -121,9 +126,19 @@ export class GeyserService {
       
       console.log(`📊 Found ${kolWallets.length} KOL wallets to track`)
       
-      // Allocate wallets across streams (50 wallets per stream max)
+      // Extract and validate wallet addresses
       const walletAddresses = kolWallets.map(w => w.address)
-      this.allocateWalletsToStreams(walletAddresses)
+      const validAddresses = validateWalletAddresses(walletAddresses, 'KOL wallet tracking')
+      
+      if (validAddresses.length === 0) {
+        console.error('❌ No valid wallet addresses found in database')
+        return
+      }
+      
+      console.log(`🎯 Proceeding with ${validAddresses.length} valid wallet addresses`)
+      
+      // Allocate wallets across streams
+      this.allocateWalletsToStreams(validAddresses)
       
       // Start streaming for each allocation
       await this.startAllStreams()
@@ -138,12 +153,15 @@ export class GeyserService {
     const { maxAccountsPerStream, maxConcurrentStreams } = this.config
     this.streamManager.allocations = []
     
+    console.log(`🔍 Allocating ${walletAddresses.length} validated wallet addresses to streams...`)
+    
     for (let i = 0; i < walletAddresses.length; i += maxAccountsPerStream) {
-      const streamId = `stream_${Math.floor(i / maxAccountsPerStream) + 1}`
+      const streamIndex = Math.floor(i / maxAccountsPerStream)
+      const streamId = `stream_${streamIndex + 1}`
       const walletBatch = walletAddresses.slice(i, i + maxAccountsPerStream)
       
-      if (this.streamManager.allocations.length >= maxConcurrentStreams) {
-        console.log(`⚠️ Reached max concurrent streams (${maxConcurrentStreams}). Skipping remaining wallets.`)
+      if (streamIndex >= maxConcurrentStreams) {
+        console.log(`⚠️ Reached max concurrent streams (${maxConcurrentStreams}). Total wallets: ${i}`)
         break
       }
       
@@ -151,8 +169,11 @@ export class GeyserService {
         streamId,
         walletAddresses: walletBatch,
         accountCount: walletBatch.length,
-        isActive: false
+        isActive: false,
+        reconnectAttempts: 0
       })
+      
+      console.log(`📋 ${streamId}: ${walletBatch.length} wallets`)
     }
     
     this.streamManager.totalWallets = this.streamManager.allocations.reduce(
@@ -160,11 +181,7 @@ export class GeyserService {
     )
     this.streamManager.totalStreams = this.streamManager.allocations.length
     
-    console.log(`📋 Stream allocation plan:`)
-    this.streamManager.allocations.forEach((allocation, index) => {
-      console.log(`   ${allocation.streamId}: ${allocation.accountCount} wallets`)
-    })
-    console.log(`📊 Total: ${this.streamManager.totalWallets} wallets across ${this.streamManager.totalStreams} streams`)
+    console.log(`📊 Stream allocation complete: ${this.streamManager.totalWallets} wallets across ${this.streamManager.totalStreams} streams`)
   }
 
   private async startAllStreams(): Promise<void> {
@@ -178,14 +195,24 @@ export class GeyserService {
       try {
         await this.startWalletStream(allocation)
         allocation.isActive = true
+        allocation.reconnectAttempts = 0
         console.log(`✅ ${allocation.streamId} started successfully`)
+        
+        // Add delay between stream starts to avoid overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
       } catch (error) {
         console.error(`❌ Failed to start ${allocation.streamId}:`, error)
+        allocation.lastError = error instanceof Error ? error.message : 'Unknown error'
       }
     }
     
-    // Also start DEX program monitoring stream
-    await this.startDexMonitoringStream()
+    // Start DEX program monitoring stream only if we have capacity
+    if (this.activeStreams.size < this.config.maxConcurrentStreams) {
+      await this.startDexMonitoringStream()
+    } else {
+      console.log('⚠️ Skipping DEX monitoring stream - at concurrent stream limit')
+    }
     
     console.log(`🎯 Multi-stream architecture active: ${this.activeStreams.size} streams running`)
   }
@@ -195,20 +222,38 @@ export class GeyserService {
       throw new Error('Client not connected')
     }
     
+    if (this.activeStreams.has(allocation.streamId)) {
+      console.log(`⚠️ Stream ${allocation.streamId} already exists, cleaning up first...`)
+      await this.cleanupStream(allocation.streamId)
+    }
+    
     console.log(`🔄 Starting ${allocation.streamId} for ${allocation.accountCount} wallets...`)
+    
+    // Double-check all addresses are valid before creating stream
+    const validAddresses = allocation.walletAddresses.filter(addr => isValidSolanaAddress(addr))
+    
+    if (validAddresses.length === 0) {
+      throw new Error(`No valid addresses in ${allocation.streamId}`)
+    }
+    
+    if (validAddresses.length !== allocation.walletAddresses.length) {
+      console.warn(`⚠️ ${allocation.streamId}: ${allocation.walletAddresses.length - validAddresses.length} invalid addresses filtered out`)
+      allocation.walletAddresses = validAddresses
+      allocation.accountCount = validAddresses.length
+    }
     
     // Create subscription request for this batch of wallets
     const subscriptionRequest: SubscribeRequest = {
       accounts: {
         [allocation.streamId]: {
-          account: allocation.walletAddresses,
+          account: validAddresses,
           owner: [],
           filters: []
         }
       },
       transactions: {
         [allocation.streamId]: {
-          accountInclude: allocation.walletAddresses,
+          accountInclude: validAddresses,
           accountExclude: [],
           accountRequired: [],
           vote: false,
@@ -238,20 +283,32 @@ export class GeyserService {
     stream.on('error', (error: any) => {
       console.error(`❌ Stream error on ${allocation.streamId}:`, error)
       allocation.isActive = false
-      this.handleStreamReconnect(allocation)
+      allocation.lastError = error.message
+      
+      // Only attempt reconnect if not shutting down and within limits
+      if (!this.isShuttingDown && allocation.reconnectAttempts < 3) {
+        this.handleStreamReconnect(allocation)
+      } else {
+        console.log(`🛑 Max reconnect attempts reached for ${allocation.streamId} or service shutting down`)
+      }
     })
     
     stream.on('end', () => {
       console.log(`🔚 Stream ended: ${allocation.streamId}`)
       allocation.isActive = false
-      this.handleStreamReconnect(allocation)
+      
+      // Only attempt reconnect if not shutting down
+      if (!this.isShuttingDown && allocation.reconnectAttempts < 3) {
+        this.handleStreamReconnect(allocation)
+      }
     })
     
     // Store active stream
     this.activeStreams.set(allocation.streamId, stream)
+    allocation.stream = stream
     
     // Add all wallet addresses to subscribed accounts
-    allocation.walletAddresses.forEach(addr => this.subscribedAccounts.add(addr))
+    validAddresses.forEach(addr => this.subscribedAccounts.add(addr))
   }
 
   private async startDexMonitoringStream(): Promise<void> {
@@ -298,25 +355,37 @@ export class GeyserService {
 
   private async handleStreamUpdate(streamId: string, update: any): Promise<void> {
     try {
+      console.log('🔍 Debug - Stream update:', update)
       if (update.transaction) {
+        // Extract signature from Buffer and convert to Base58
+        const signatureBuffer = update.transaction.transaction.signature
+        const signature = signatureBuffer ? bs58.encode(signatureBuffer) : undefined
+        
+        if (!signature) {
+          console.log('⚠️ Transaction update missing signature, skipping...')
+          return
+        }
+        
         // Process transaction update
         const txUpdate: GeyserTransactionUpdate = {
-          signature: update.transaction.signature,
+          signature,
           slot: update.transaction.slot,
           blockTime: new Date(update.transaction.block_time * 1000),
           transaction: update.transaction,
           accounts: update.transaction.transaction?.message?.account_keys || []
         }
-        
+        console.log('🔍 Debug - Transaction update:', txUpdate)
         // Push to message queue for processing
         await this.messageQueue.publishRawTransaction(txUpdate)
         
-        console.log(`📨 Processed transaction ${txUpdate.signature.slice(0, 8)}... on ${streamId}`)
+        console.log(`📨 Processed transaction ${signature.slice(0, 8)}... on ${streamId}`)
       }
       
       if (update.account) {
-        // Process account update
-        console.log(`📊 Account update on ${streamId}: ${update.account.pubkey}`)
+        // Process account update - convert pubkey Buffer to Base58
+        const pubkeyBuffer = update.account.account.pubkey
+        const pubkey = pubkeyBuffer ? bs58.encode(pubkeyBuffer) : 'unknown'
+        console.log(`📊 Account update on ${streamId}: ${pubkey}`)
       }
       
     } catch (error) {
@@ -325,18 +394,50 @@ export class GeyserService {
   }
 
   private async handleStreamReconnect(allocation: StreamAllocation): Promise<void> {
-    console.log(`🔄 Attempting to reconnect ${allocation.streamId}...`)
+    if (this.isShuttingDown || allocation.reconnectAttempts >= 3) {
+      return
+    }
+    
+    allocation.reconnectAttempts++
+    
+    console.log(`🔄 Attempting to reconnect ${allocation.streamId} (attempt ${allocation.reconnectAttempts}/3)...`)
+    
+    // Clean up existing stream first
+    await this.cleanupStream(allocation.streamId)
+    
+    const delay = 2000 * allocation.reconnectAttempts // Increasing delay
     
     setTimeout(async () => {
       try {
-        await this.startWalletStream(allocation)
-        console.log(`✅ Successfully reconnected ${allocation.streamId}`)
+        if (!this.isShuttingDown) {
+          await this.startWalletStream(allocation)
+          console.log(`✅ Successfully reconnected ${allocation.streamId}`)
+        }
       } catch (error) {
         console.error(`❌ Failed to reconnect ${allocation.streamId}:`, error)
-        // Try again with exponential backoff
-        this.handleStreamReconnect(allocation)
+        allocation.lastError = error instanceof Error ? error.message : 'Reconnection failed'
       }
-    }, 5000)
+    }, delay)
+  }
+
+  private async cleanupStream(streamId: string): Promise<void> {
+    const stream = this.activeStreams.get(streamId)
+    if (stream) {
+      try {
+        stream.destroy()
+        this.activeStreams.delete(streamId)
+        console.log(`🔚 Cleaned up stream: ${streamId}`)
+      } catch (error) {
+        console.error(`❌ Error cleaning up stream ${streamId}:`, error)
+      }
+    }
+    
+    // Update allocation status
+    const allocation = this.streamManager.allocations.find(a => a.streamId === streamId)
+    if (allocation) {
+      allocation.isActive = false
+      allocation.stream = undefined
+    }
   }
 
   private startPingInterval(): void {
@@ -346,21 +447,23 @@ export class GeyserService {
 
     this.pingInterval = setInterval(async () => {
       try {
-        if (this.client && this.isConnected) {
+        if (this.client && this.isConnected && !this.isShuttingDown) {
           await this.client.ping(1)
           console.log('📡 Geyser ping successful')
         }
       } catch (error) {
         console.error('💥 Geyser ping failed:', error)
         this.isConnected = false
-        await this.handleReconnect()
+        if (!this.isShuttingDown) {
+          await this.handleReconnect()
+        }
       }
     }, this.config.pingIntervalMs)
   }
 
   private async handleReconnect(): Promise<void> {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('💀 Max reconnection attempts reached. Stopping Geyser service.')
+    if (this.reconnectAttempts >= this.maxReconnectAttempts || this.isShuttingDown) {
+      console.log('💀 Max reconnection attempts reached or shutting down. Stopping Geyser service.')
       this.stop()
       return
     }
@@ -372,10 +475,14 @@ export class GeyserService {
     
     setTimeout(async () => {
       try {
-        await this.connect()
+        if (!this.isShuttingDown) {
+          await this.connect()
+        }
       } catch (error) {
         console.error('❌ Reconnection failed:', error)
-        await this.handleReconnect()
+        if (!this.isShuttingDown) {
+          await this.handleReconnect()
+        }
       }
     }, delay)
   }
@@ -383,6 +490,7 @@ export class GeyserService {
   public stop(): void {
     console.log('🛑 Stopping Geyser service...')
     this.isConnected = false
+    this.isShuttingDown = true
     
     if (this.pingInterval) {
       clearInterval(this.pingInterval)
@@ -410,6 +518,8 @@ export class GeyserService {
     // Reset stream manager
     this.streamManager.allocations.forEach(allocation => {
       allocation.isActive = false
+      allocation.stream = undefined
+      allocation.reconnectAttempts = 0
     })
   }
 
@@ -447,6 +557,10 @@ export class GeyserService {
       throw new Error('Geyser service not connected')
     }
     
+    if (!isValidSolanaAddress(address)) {
+      throw new Error(`Invalid Solana address: ${address}`)
+    }
+    
     this.subscribedAccounts.add(address)
     console.log(`📊 Now tracking wallet: ${address}`)
   }
@@ -478,18 +592,34 @@ export class GeyserService {
     inactiveStreams: string[]
     totalWallets: number
     averageWalletsPerStream: number
+    streamDetails: Array<{
+      streamId: string
+      isActive: boolean
+      walletCount: number
+      reconnectAttempts: number
+      lastError?: string
+    }>
   }> {
     const activeCount = this.streamManager.allocations.filter(a => a.isActive).length
     const inactiveStreams = this.streamManager.allocations
       .filter(a => !a.isActive)
       .map(a => a.streamId)
     
+    const streamDetails = this.streamManager.allocations.map(allocation => ({
+      streamId: allocation.streamId,
+      isActive: allocation.isActive,
+      walletCount: allocation.accountCount,
+      reconnectAttempts: allocation.reconnectAttempts,
+      lastError: allocation.lastError
+    }))
+    
     return {
       totalStreams: this.streamManager.totalStreams,
       activeStreams: activeCount,
       inactiveStreams,
       totalWallets: this.streamManager.totalWallets,
-      averageWalletsPerStream: this.streamManager.totalWallets / Math.max(this.streamManager.totalStreams, 1)
+      averageWalletsPerStream: this.streamManager.totalWallets / Math.max(this.streamManager.totalStreams, 1),
+      streamDetails
     }
   }
 }

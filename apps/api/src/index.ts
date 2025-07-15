@@ -108,6 +108,12 @@ async function startRealTimeServices(): Promise<void> {
     return
   }
   
+  // if (!appConfig.geyser.autoStart) {
+  //   console.log('🔧 Geyser auto-start disabled - services ready for manual start')
+  //   console.log('💡 Use the /api/v1/geyser/start endpoint to begin real-time streaming')
+  //   return
+  // }
+  
   console.log('🚀 Starting real-time streaming services...')
   
   try {
@@ -179,9 +185,15 @@ const start = async () => {
     console.log(`   curl -X POST http://${host}:${port}/api/v1/bootstrap/decoupled-bootstrap`)
     
     if (appConfig.walletTracking.enableRealTimeTracking) {
-      console.log(`   - Geyser Control: http://${host}:${port}/api/v1/geyser/status`)
       console.log('')
-      console.log('�� PHASE 2: REAL-TIME STREAMING STARTING...')
+      console.log('🔧 Real-time Streaming Control:')
+      console.log(`   - Status: http://${host}:${port}/api/v1/geyser/status`)
+      console.log(`   - Start Streaming: http://${host}:${port}/api/v1/geyser/start`)
+      console.log(`   - Stop Streaming: http://${host}:${port}/api/v1/geyser/stop`)
+      console.log('')
+      
+      console.log('🚀 PHASE 2: REAL-TIME STREAMING AUTO-STARTING...')
+      
       // Start real-time services after API server is running
       await startRealTimeServices()
     }

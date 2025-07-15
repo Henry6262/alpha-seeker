@@ -33,8 +33,20 @@ export {
 // Wallet Types
 export * from './wallet.types.js'
 
-// Geyser Types
-export * from './geyser.types.js'
+// Geyser Types (including validation functions)
+export {
+  type GeyserConnection,
+  type GeyserStream,
+  type GeyserTransactionUpdate,
+  type GeyserAccountUpdate,
+  type GeyserConfig,
+  type GeyserStatus,
+  type StreamAllocation,
+  type MultiStreamManager,
+  isValidSolanaAddress,
+  filterValidAddresses,
+  validateWalletAddresses
+} from './geyser.types.js'
 
 // =================================
 // DEX Program Constants
@@ -81,73 +93,83 @@ export function getDexProgramName(programId: string): string {
 }
 
 // =================================
-// Message Queue Types
+// Common Data Processing Types
+// =================================
+
+export interface TokenMetadata {
+  address: string
+  symbol: string
+  name: string
+  decimals: number
+  logoUri?: string
+  coingeckoId?: string
+}
+
+export interface SwapData {
+  signature: string
+  walletAddress: string
+  dexProgram: string
+  inputToken: TokenMetadata
+  outputToken: TokenMetadata
+  inputAmountRaw: string
+  outputAmountRaw: string
+  inputAmountUsd: number
+  outputAmountUsd: number
+  timestamp: Date
+  slot: number
+  priceImpact?: number
+  fee?: number
+}
+
+export interface PnlCalculation {
+  walletAddress: string
+  tokenMint: string
+  realizedPnlUsd: number
+  unrealizedPnlUsd: number
+  totalBuyVolumeUsd: number
+  totalSellVolumeUsd: number
+  avgBuyPrice: number
+  avgSellPrice: number
+  currentPrice: number
+  holdingAmount: number
+  firstBuyTime: Date
+  lastTradeTime: Date
+  tradeCount: number
+  winningTrades: number
+  losingTrades: number
+}
+
+export interface TradeHistory {
+  signature: string
+  walletAddress: string
+  tokenMint: string
+  side: 'buy' | 'sell'
+  amountUsd: number
+  priceUsd: number
+  quantity: number
+  timestamp: Date
+  dexProgram: string
+}
+
+// =================================
+// Real-time Processing Types
 // =================================
 
 export interface QueueMessage {
   id: string
-  type: 'transaction' | 'pnl_update' | 'gem_discovery' | 'leaderboard_update' | 'feed_update'
-  payload: any
+  type: 'transaction' | 'account' | 'price' | 'leaderboard'
+  data: any
   timestamp: Date
-  attempts: number
   priority: number
+  retryCount: number
 }
 
-export interface MessageQueueConfig {
-  type: 'redis' | 'rabbitmq'
-  host: string
-  port: number
-  username?: string
-  password?: string
-  database?: number
-}
-
-// =================================
-// Redis Leaderboard Types
-// =================================
-
-export interface RedisLeaderboardEntry {
-  walletAddress: string
-  pnlUsd: number
-  rank: number
-  period: string
-}
-
-export interface RedisConfig {
-  host: string
-  port: number
-  password?: string
-  database: number
-  keyPrefix: string
-}
-
-// =================================
-// PNL Calculation Types
-// =================================
-
-export interface PnlCalculation {
-  walletAddress: string
-  tokenMintAddress: string
-  realizedPnlUsd: number
-  unrealizedPnlUsd: number
-  totalPnlUsd: number
-  averageCostBasisUsd: number
-  currentPriceUsd: number
-  holdingAmountRaw: string
-  timestamp: Date
-}
-
-export interface TradeEvent {
-  signature: string
-  walletAddress: string
-  inputMint: string
-  outputMint: string
-  inputAmount: string
-  outputAmount: string
-  inputAmountUsd: number
-  outputAmountUsd: number
-  blockTime: Date
-  tradeType: 'buy' | 'sell'
+export interface ProcessingMetrics {
+  processedCount: number
+  errorCount: number
+  avgProcessingTime: number
+  queueDepth: number
+  lastProcessedTime: Date
 }
 
 // =================================
@@ -190,15 +212,6 @@ export interface GemCandidate {
   metadata?: TokenMetadata
 }
 
-export interface TokenMetadata {
-  name: string
-  symbol: string
-  decimals: number
-  logoUri?: string
-  description?: string
-  verified: boolean
-}
-
 // =================================
 // SSE (Server-Sent Events) Types
 // =================================
@@ -206,7 +219,7 @@ export interface TokenMetadata {
 export interface SSEConnection {
   id: string
   clientId: string
-  walletAddress?: string
+  walletAddress: string
   channels: string[]
   lastActivity: Date
   isActive: boolean
@@ -217,65 +230,4 @@ export interface SSEMessage {
   channel: string
   data: any
   timestamp: Date
-}
-
-// =================================
-// Monitoring Types
-// =================================
-
-export interface SystemMetrics {
-  geyserStreamLag: number
-  messageQueueDepth: number
-  apiLatencyMs: number
-  databaseLatencyMs: number
-  redisLatencyMs: number
-  activeConnections: number
-  transactionsPerSecond: number
-  pnlUpdatesPerSecond: number
-}
-
-export interface AlertConfig {
-  metric: keyof SystemMetrics
-  threshold: number
-  operator: 'gt' | 'lt' | 'eq'
-  enabled: boolean
-}
-
-// =================================
-// Price Feed Types
-// =================================
-
-export interface PriceUpdate {
-  mintAddress: string
-  priceUsd: number
-  timestamp: Date
-  source: 'jupiter' | 'helius' | 'cache'
-  confidence: number
-}
-
-export interface PriceCacheEntry {
-  mintAddress: string
-  priceUsd: number
-  lastUpdated: Date
-  expiresAt: Date
-  source: string
-}
-
-// =================================
-// Service Status Types
-// =================================
-
-export interface ServiceStatus {
-  name: string
-  status: 'healthy' | 'degraded' | 'unhealthy'
-  lastCheck: Date
-  uptime: number
-  details?: Record<string, any>
-}
-
-export interface HealthCheck {
-  services: ServiceStatus[]
-  overall: 'healthy' | 'degraded' | 'unhealthy'
-  timestamp: Date
-  version: string
 } 
