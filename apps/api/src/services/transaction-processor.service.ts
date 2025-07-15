@@ -498,13 +498,66 @@ export class TransactionProcessorService {
   }
 
   private async fetchTokenMetadataFromHelius(mint: string): Promise<TokenMetadata | null> {
-    // Mock implementation - would use actual Helius DAS API
-    console.log(`🔍 Fetching metadata for token ${mint} (mock)`)
-    
+    try {
+      const heliusApiKey = process.env.HELIUS_API_KEY
+      if (!heliusApiKey) {
+        console.warn('⚠️ HELIUS_API_KEY not configured, using fallback metadata')
+        return this.createFallbackMetadata(mint)
+      }
+
+      console.log(`🔍 Fetching metadata for token ${mint} from Helius DAS API`)
+
+      const response = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'helius-metadata',
+          method: 'getAsset',
+          params: { id: mint }
+        })
+      })
+
+      if (!response.ok) {
+        console.warn(`⚠️ Helius API HTTP error ${response.status}, using fallback`)
+        return this.createFallbackMetadata(mint)
+      }
+
+      const data = await response.json()
+      
+      if (data.error) {
+        console.warn(`⚠️ Helius API error for ${mint}:`, data.error.message)
+        return this.createFallbackMetadata(mint)
+      }
+
+      const asset = data.result
+      if (!asset) {
+        console.warn(`⚠️ No asset data returned for ${mint}`)
+        return this.createFallbackMetadata(mint)
+      }
+
+      const metadata: TokenMetadata = {
+        mint,
+        name: asset.content?.metadata?.name || `Token ${mint.slice(0, 8)}`,
+        symbol: asset.content?.metadata?.symbol || `UNK${mint.slice(0, 3)}`,
+        decimals: asset.token_info?.decimals ?? 9,
+        logoUri: asset.content?.links?.image || asset.content?.files?.[0]?.uri
+      }
+
+      console.log(`✅ Fetched metadata: ${metadata.symbol} (${metadata.name})`)
+      return metadata
+      
+    } catch (error) {
+      console.error(`❌ Error fetching from Helius DAS API for ${mint}:`, error)
+      return this.createFallbackMetadata(mint)
+    }
+  }
+
+  private createFallbackMetadata(mint: string): TokenMetadata {
     return {
       mint,
-      name: `Token ${mint.slice(0, 8)}`,
-      symbol: `TKN${mint.slice(0, 4)}`,
+      name: `Token ${mint.slice(0, 8)}...`,
+      symbol: `UNK${mint.slice(-3)}`,
       decimals: 9,
       logoUri: undefined
     }
@@ -536,17 +589,48 @@ export class TransactionProcessorService {
   }
 
   private async fetchTokenPriceFromJupiter(mint: string): Promise<number | null> {
-    // Mock implementation - would use actual Jupiter Price API
-    console.log(`💰 Fetching price for token ${mint} (mock)`)
-    
-    // Mock prices for common tokens
-    const mockPrices: { [key: string]: number } = {
-      'So11111111111111111111111111111111111111112': 100, // SOL
+    try {
+      console.log(`💰 Fetching price for token ${mint} from Jupiter Price API`)
+
+      // Jupiter Price API endpoint
+      const response = await fetch(`https://price.jup.ag/v4/price?ids=${mint}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        console.warn(`⚠️ Jupiter Price API HTTP error ${response.status}`)
+        return this.getFallbackPrice(mint)
+      }
+
+      const data = await response.json()
+      
+      if (data.data && data.data[mint] && data.data[mint].price) {
+        const price = parseFloat(data.data[mint].price)
+        console.log(`✅ Fetched price for ${mint}: $${price}`)
+        return price
+      } else {
+        console.warn(`⚠️ No price data returned for ${mint}`)
+        return this.getFallbackPrice(mint)
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error fetching price from Jupiter API for ${mint}:`, error)
+      return this.getFallbackPrice(mint)
+    }
+  }
+
+  private getFallbackPrice(mint: string): number {
+    // Fallback prices for common tokens when API is unavailable
+    const fallbackPrices: { [key: string]: number } = {
+      'So11111111111111111111111111111111111111112': 150, // SOL approximate
       'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 1, // USDC
       'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 1, // USDT
+      '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R': 80, // RAY
+      'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So': 140, // mSOL
     }
     
-    return mockPrices[mint] || Math.random() * 10 // Random price for other tokens
+    return fallbackPrices[mint] || 0.001 // Default small price for unknown tokens
   }
 
   private async storeTransactionData(
