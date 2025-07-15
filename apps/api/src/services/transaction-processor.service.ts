@@ -691,24 +691,218 @@ export class TransactionProcessorService {
     outputPrice: number | null
   ): Promise<PnlUpdate | null> {
     try {
-      // Simple PNL calculation (would implement full Average Cost Basis later)
-      const inputValue = (inputPrice || 0) * swap.inputAmount
-      const outputValue = (outputPrice || 0) * swap.outputAmount
-      const realizedPnl = outputValue - inputValue
+      // Determine if this is a buy or sell based on whether input token is SOL/USDC (base currency)
+      const baseCurrencies = [
+        'So11111111111111111111111111111111111111112', // SOL
+        'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+        'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
+      ]
       
-      console.log(`📊 PNL for ${swap.walletAddress}: $${realizedPnl.toFixed(2)} (${inputValue.toFixed(2)} → ${outputValue.toFixed(2)})`)
+      const isSell = baseCurrencies.includes(swap.outputMint) // Selling token for base currency
+      const isBuy = baseCurrencies.includes(swap.inputMint)   // Buying token with base currency
+      
+      let realizedPnl = 0
+      let unrealizedPnl = 0
+      
+      if (isBuy) {
+        // BUY: Update position with new tokens
+        await this.updatePositionOnBuy(swap, outputToken, outputPrice)
+        console.log(`🟢 BUY: ${swap.outputAmount} ${outputToken?.symbol || 'tokens'} for $${((inputPrice || 0) * swap.inputAmount).toFixed(2)}`)
+        
+      } else if (isSell) {
+        // SELL: Calculate realized PNL and update position
+        realizedPnl = await this.updatePositionOnSell(swap, inputToken, inputPrice)
+        console.log(`🔴 SELL: ${swap.inputAmount} ${inputToken?.symbol || 'tokens'} for $${((outputPrice || 0) * swap.outputAmount).toFixed(2)} (PNL: $${realizedPnl.toFixed(2)})`)
+        
+      } else {
+        // TOKEN-TO-TOKEN SWAP: Treat as sell then buy
+        realizedPnl = await this.updatePositionOnSell(swap, inputToken, inputPrice)
+        await this.updatePositionOnBuy(swap, outputToken, outputPrice)
+        console.log(`🔄 SWAP: ${inputToken?.symbol || 'input'} → ${outputToken?.symbol || 'output'} (PNL: $${realizedPnl.toFixed(2)})`)
+      }
+      
+      // Calculate total unrealized PNL for this wallet across all positions
+      unrealizedPnl = await this.calculateTotalUnrealizedPnl(swap.walletAddress)
+      
+      const totalPnl = realizedPnl + unrealizedPnl
       
       return {
         walletAddress: swap.walletAddress,
-        tokenMint: swap.outputMint,
+        tokenMint: isSell ? swap.inputMint : swap.outputMint,
         realizedPnl,
-        unrealizedPnl: 0, // Would calculate based on current holdings
-        totalPnl: realizedPnl
+        unrealizedPnl,
+        totalPnl
       }
       
     } catch (error) {
       console.error('❌ Error calculating PNL update:', error)
       return null
+    }
+  }
+
+  /**
+   * Update position when buying tokens - implements Average Cost Basis
+   */
+  private async updatePositionOnBuy(
+    swap: SwapData,
+    tokenMeta: TokenMetadata | null,
+    tokenPrice: number | null
+  ): Promise<void> {
+    try {
+      const tokenMint = swap.outputMint
+      const amount = swap.outputAmount
+      const usdCost = (swap.inputAmount * (await this.getTokenPrice(swap.inputMint) || 0))
+      
+      // Get existing position or create new one
+      const existingPosition = await prisma.kolPosition.findUnique({
+        where: {
+          kolAddress_tokenMintAddress: {
+            kolAddress: swap.walletAddress,
+            tokenMintAddress: tokenMint
+          }
+        }
+      })
+      
+      if (existingPosition) {
+        // Update existing position with average cost basis
+        const newTotalTokens = existingPosition.currentBalanceRaw + amount
+        const newTotalCost = existingPosition.totalCostBasisUsd + usdCost
+        const newAvgCost = newTotalTokens > 0 ? newTotalCost / newTotalTokens : 0
+        
+        await prisma.kolPosition.update({
+          where: {
+            kolAddress_tokenMintAddress: {
+              kolAddress: swap.walletAddress,
+              tokenMintAddress: tokenMint
+            }
+          },
+          data: {
+            currentBalanceRaw: newTotalTokens,
+            totalCostBasisUsd: newTotalCost,
+            weightedAvgCostUsd: newAvgCost,
+            lastUpdated: new Date()
+          }
+        })
+        
+      } else {
+        // Create new position
+        await prisma.kolPosition.create({
+          data: {
+            kolAddress: swap.walletAddress,
+            tokenMintAddress: tokenMint,
+            currentBalanceRaw: amount,
+            totalCostBasisUsd: usdCost,
+            weightedAvgCostUsd: amount > 0 ? usdCost / amount : 0,
+            firstAcquired: new Date(),
+            lastUpdated: new Date()
+          }
+        })
+      }
+      
+    } catch (error) {
+      console.error('❌ Error updating position on buy:', error)
+    }
+  }
+
+  /**
+   * Update position when selling tokens - calculates realized PNL
+   */
+  private async updatePositionOnSell(
+    swap: SwapData,
+    tokenMeta: TokenMetadata | null,
+    tokenPrice: number | null
+  ): Promise<number> {
+    try {
+      const tokenMint = swap.inputMint
+      const soldAmount = swap.inputAmount
+      const usdReceived = (swap.outputAmount * (await this.getTokenPrice(swap.outputMint) || 0))
+      
+      const position = await prisma.kolPosition.findUnique({
+        where: {
+          kolAddress_tokenMintAddress: {
+            kolAddress: swap.walletAddress,
+            tokenMintAddress: tokenMint
+          }
+        }
+      })
+      
+      if (!position) {
+        console.warn(`⚠️ No position found for ${swap.walletAddress} selling ${tokenMint}`)
+        return 0 // No position to sell from
+      }
+      
+      // Calculate realized PNL using Average Cost Basis
+      const avgCostPerToken = position.weightedAvgCostUsd
+      const costBasisOfSoldTokens = avgCostPerToken * soldAmount
+      const realizedPnl = usdReceived - costBasisOfSoldTokens
+      
+      // Update position
+      const newBalance = Math.max(0, position.currentBalanceRaw - soldAmount)
+      const newTotalCost = Math.max(0, position.totalCostBasisUsd - costBasisOfSoldTokens)
+      
+      await prisma.kolPosition.update({
+        where: {
+          kolAddress_tokenMintAddress: {
+            kolAddress: swap.walletAddress,
+            tokenMintAddress: tokenMint
+          }
+        },
+        data: {
+          currentBalanceRaw: newBalance,
+          totalCostBasisUsd: newTotalCost,
+          lastUpdated: new Date()
+        }
+      })
+      
+      // Record realized PNL event
+      await prisma.kolRealizedPnlEvent.create({
+        data: {
+          kolAddress: swap.walletAddress,
+          tokenMintAddress: tokenMint,
+          transactionSignature: swap.signature,
+          soldAmount: soldAmount,
+          realizedPnlUsd: realizedPnl,
+          avgCostBasis: avgCostPerToken,
+          salePrice: usdReceived / soldAmount,
+          timestamp: swap.timestamp
+        }
+      })
+      
+      return realizedPnl
+      
+    } catch (error) {
+      console.error('❌ Error updating position on sell:', error)
+      return 0
+    }
+  }
+
+  /**
+   * Calculate total unrealized PNL for a wallet across all positions
+   */
+  private async calculateTotalUnrealizedPnl(walletAddress: string): Promise<number> {
+    try {
+      const positions = await prisma.kolPosition.findMany({
+        where: { kolAddress: walletAddress }
+      })
+      
+      let totalUnrealizedPnl = 0
+      
+      for (const position of positions) {
+        if (position.currentBalanceRaw <= 0) continue
+        
+        const currentPrice = await this.getTokenPrice(position.tokenMintAddress) || 0
+        const currentValue = currentPrice * position.currentBalanceRaw
+        const costBasis = position.totalCostBasisUsd
+        const unrealizedPnl = currentValue - costBasis
+        
+        totalUnrealizedPnl += unrealizedPnl
+      }
+      
+      return totalUnrealizedPnl
+      
+    } catch (error) {
+      console.error('❌ Error calculating total unrealized PNL:', error)
+      return 0
     }
   }
 
