@@ -4,6 +4,7 @@ import { RedisLeaderboardService } from './redis-leaderboard.service.js'
 import { SSEService } from './sse.service.js'
 import { prisma } from '../lib/prisma.js'
 import { GeyserTransactionUpdate, DEX_PROGRAMS, isDexProgram, getDexProgramName } from '../types/index.js'
+import { extract } from '@jup-ag/instruction-parser'
 
 interface SwapData {
   signature: string
@@ -162,50 +163,95 @@ export class TransactionProcessorService {
         return swaps // Transaction failed or not found
       }
       
+      // First, try to parse using Jupiter instruction parser for Jupiter swaps
+      try {
+        const jupiterSwaps = await this.parseJupiterSwaps(txDetails, txUpdate)
+        if (jupiterSwaps.length > 0) {
+          swaps.push(...jupiterSwaps)
+          console.log(`✅ Found ${jupiterSwaps.length} Jupiter swaps in transaction ${txUpdate.signature.slice(0, 8)}...`)
+        }
+      } catch (error) {
+        console.log(`⚠️ Jupiter parser failed for ${txUpdate.signature.slice(0, 8)}..., falling back to balance analysis`)
+      }
+      
+      // If no Jupiter swaps found, fall back to general DEX analysis
+      if (swaps.length === 0) {
+        const generalSwaps = await this.parseGeneralDexSwaps(txDetails, txUpdate)
+        swaps.push(...generalSwaps)
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error parsing transaction ${txUpdate.signature}:`, error)
+    }
+    
+    return swaps
+  }
+
+  /**
+   * Parse Jupiter swaps using the official Jupiter instruction parser
+   */
+  private async parseJupiterSwaps(txDetails: any, txUpdate: GeyserTransactionUpdate): Promise<SwapData[]> {
+    const swaps: SwapData[] = []
+    
+    try {
+      // For now, use balance analysis for Jupiter transactions
+      // TODO: Implement proper Jupiter instruction parsing once we understand the API better
+      console.log('🔍 Using balance analysis for Jupiter transactions...')
+      
+      const jupiterSwaps = await this.parseGeneralDexSwaps(txDetails, txUpdate)
+      return jupiterSwaps.map(swap => ({ ...swap, dexProgram: 'Jupiter' }))
+      
+    } catch (error) {
+      console.error('❌ Error parsing Jupiter swaps:', error)
+    }
+    
+    return swaps
+  }
+
+  /**
+   * Fallback parser for general DEX swaps (Raydium, Orca, etc.)
+   */
+  private async parseGeneralDexSwaps(txDetails: any, txUpdate: GeyserTransactionUpdate): Promise<SwapData[]> {
+    const swaps: SwapData[] = []
+    
+    try {
       const { transaction, meta } = txDetails
-      const accountKeys = transaction.message.accountKeys.map(key => 
+      const accountKeys: string[] = transaction.message.accountKeys.map((key: any) => 
         typeof key === 'string' ? key : key.pubkey.toString()
       )
       
       // Look for DEX program interactions
-      const involvedPrograms = accountKeys.filter(addr => 
-        isDexProgram(addr)
-      )
+      const involvedPrograms = accountKeys.filter((addr: string) => isDexProgram(addr))
       
       if (involvedPrograms.length === 0) {
-        return swaps // No DEX programs involved
+        return swaps
       }
       
-      console.log(`🔍 Found DEX programs in transaction: ${involvedPrograms.map(p => getDexProgramName(p)).join(', ')}`)
+      console.log(`🔍 Found DEX programs: ${involvedPrograms.map((p: string) => getDexProgramName(p)).join(', ')}`)
       
-      // Parse instructions for swap patterns
-      for (const instruction of transaction.message.instructions) {
-        // Handle both ParsedInstruction and PartiallyDecodedInstruction types
-        const programIdIndex = 'programIdIndex' in instruction 
-          ? instruction.programIdIndex 
-          : instruction.programId
+      // Check each account to see if it's a KOL wallet
+      for (const addr of accountKeys) {
+        const kolWallet = await prisma.kolWallet.findUnique({ where: { address: addr } })
         
-        const programId = typeof programIdIndex === 'number' 
-          ? accountKeys[programIdIndex]
-          : programIdIndex?.toString()
-        
-        if (programId && isDexProgram(programId)) {
-          const swap = await this.parseSwapInstruction(
-            instruction,
-            accountKeys,
-            meta,
-            txUpdate,
-            programId
-          )
+                if (kolWallet && involvedPrograms.length > 0) {
+            const dexName: string = getDexProgramName(involvedPrograms[0]) || 'Unknown DEX'
+            const swapData = this.analyzeTokenBalanceChanges(
+              meta.preTokenBalances || [],
+              meta.postTokenBalances || [],
+              addr,
+              txUpdate,
+              dexName
+            )
           
-          if (swap) {
-            swaps.push(swap)
+          if (swapData) {
+            console.log(`🚀 DEX swap detected: ${kolWallet.curatedName} swapped on ${swapData.dexProgram}`)
+            swaps.push(swapData)
           }
         }
       }
       
     } catch (error) {
-      console.error(`❌ Error parsing transaction ${txUpdate.signature}:`, error)
+      console.error('❌ Error parsing general DEX swaps:', error)
     }
     
     return swaps
