@@ -3,7 +3,7 @@ import { MessageQueueService } from './message-queue.service.js'
 import { RedisLeaderboardService } from './redis-leaderboard.service.js'
 import { SSEService } from './sse.service.js'
 import { prisma } from '../lib/prisma.js'
-import { GeyserTransactionUpdate, DEX_PROGRAMS } from '../types/index.js'
+import { GeyserTransactionUpdate, DEX_PROGRAMS, isDexProgram, getDexProgramName } from '../types/index.js'
 
 interface SwapData {
   signature: string
@@ -148,7 +148,7 @@ export class TransactionProcessorService {
       
       // Look for DEX program interactions
       const involvedPrograms = accountKeys.filter(addr => 
-        Object.values(DEX_PROGRAMS).includes(addr)
+        isDexProgram(addr)
       )
       
       if (involvedPrograms.length === 0) {
@@ -157,9 +157,16 @@ export class TransactionProcessorService {
       
       // Parse instructions for swap patterns
       for (const instruction of transaction.message.instructions) {
-        const programId = accountKeys[instruction.programIdIndex]
+        // Handle both ParsedInstruction and PartiallyDecodedInstruction types
+        const programIdIndex = 'programIdIndex' in instruction 
+          ? instruction.programIdIndex 
+          : instruction.programId
         
-        if (Object.values(DEX_PROGRAMS).includes(programId)) {
+        const programId = typeof programIdIndex === 'number' 
+          ? accountKeys[programIdIndex]
+          : programIdIndex?.toString()
+        
+        if (programId && isDexProgram(programId)) {
           const swap = await this.parseSwapInstruction(
             instruction,
             accountKeys,
@@ -191,6 +198,10 @@ export class TransactionProcessorService {
     try {
       // Extract wallet address (transaction signer)
       const walletAddress = accountKeys[0] // First account is usually the signer
+      
+      if (!walletAddress) {
+        return null // No wallet address found
+      }
       
       // Check if this wallet is one of our tracked KOL wallets
       const kolWallet = await prisma.kolWallet.findUnique({
