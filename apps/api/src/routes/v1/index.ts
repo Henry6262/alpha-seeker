@@ -116,7 +116,7 @@ export async function v1Routes(fastify: FastifyInstance) {
       reply.status(500).send({
         success: false,
         error: 'Failed to start streaming pipeline',
-        details: error.message
+        details: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   })
@@ -153,7 +153,7 @@ export async function v1Routes(fastify: FastifyInstance) {
       reply.status(500).send({
         success: false,
         error: 'Failed to stop streaming pipeline',
-        details: error.message
+        details: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   })
@@ -182,7 +182,7 @@ export async function v1Routes(fastify: FastifyInstance) {
         pnlEngineService.getStatus(),
         new MessageQueueService().getQueueStats(),
         new RedisLeaderboardService().getLeaderboardStats(),
-        new SSEService().getConnectionStats()
+        new SSEService().getStats()
       ])
       
       // Get stream health details
@@ -221,7 +221,7 @@ export async function v1Routes(fastify: FastifyInstance) {
       reply.status(500).send({
         success: false,
         error: 'Failed to get streaming status',
-        details: error.message
+        details: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   })
@@ -246,7 +246,7 @@ export async function v1Routes(fastify: FastifyInstance) {
       reply.status(500).send({
         success: false,
         error: 'Failed to calculate PNL',
-        details: error.message
+        details: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   })

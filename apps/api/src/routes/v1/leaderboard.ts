@@ -23,13 +23,11 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
     
     // Validate type - only PNL supported in MVP
     if (request.query.type === 'volume') {
-      reply.status(400)
-      return {
+      return reply.status(400).send({
         success: false,
-        data: [],
         error: 'Volume leaderboard has been removed from MVP. Only PNL leaderboard is supported.',
         timestamp: new Date().toISOString()
-      }
+      })
     }
     
     // Convert limit to integer
@@ -68,13 +66,11 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
       }
     } catch (error) {
       request.log.error(error)
-      reply.status(500)
-      return {
+      return reply.status(500).send({
         success: false,
-        data: [],
         error: 'Failed to fetch leaderboard data',
         timestamp: new Date().toISOString()
-      }
+      })
     }
   })
 
@@ -114,7 +110,7 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
       const walletProfile: WalletProfile = {
         address: wallet.address,
         curatedName: wallet.curatedName,
-        twitterHandle: wallet.twitterHandle,
+        twitterHandle: wallet.twitterHandle || undefined,
         totalPnl: recentPnl?.realizedPnlUsd?.toNumber() || 0,
         roiPercentage: recentPnl?.roiPercentage?.toNumber() || 0,
         winRate: recentPnl?.winRate?.toNumber() || 0,

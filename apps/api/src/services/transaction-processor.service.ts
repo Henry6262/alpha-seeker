@@ -531,7 +531,8 @@ export class TransactionProcessorService {
     try {
       // Push transaction feed update
       await this.sseService.broadcastToChannel('transaction-feed', {
-        type: 'new_transaction',
+        type: 'transaction',
+        timestamp: new Date(),
         data: {
           signature: swap.signature,
           wallet: swap.walletAddress,
@@ -547,7 +548,8 @@ export class TransactionProcessorService {
       
       // Push PNL update
       await this.sseService.broadcastToChannel('leaderboard-updates', {
-        type: 'pnl_update',
+        type: 'position',
+        timestamp: new Date(),
         data: pnlUpdate
       })
       
@@ -570,9 +572,9 @@ export class TransactionProcessorService {
     console.log('🛑 Stopping Transaction Processor service...')
     this.isProcessing = false
     
-    await this.messageQueue.stop()
-    await this.redisLeaderboard.stop()
-    await this.sseService.stop()
+    await this.messageQueue.shutdown()
+    await this.redisLeaderboard.shutdown()
+    await this.sseService.shutdown()
     
     this.tokenCache.clear()
     this.priceCache.clear()

@@ -37,7 +37,7 @@ export class PnlEngineService {
   private sseService: SSEService
   private messageQueue: MessageQueueService
   private isRunning = false
-  private calculationInterval: NodeJS.Timeout | null = null
+  private calculationInterval: ReturnType<typeof setInterval> | null = null
   
   // Price cache for real-time price fetching
   private priceCache = new Map<string, TokenPrice>()
@@ -510,7 +510,7 @@ export class PnlEngineService {
         this.errors++
         console.error('❌ Error in periodic PNL calculations:', error)
       }
-    }, 60000) as NodeJS.Timeout // Every 60 seconds
+    }, 60000) // Every 60 seconds
   }
 
   private async runPeriodicCalculations(): Promise<void> {
