@@ -81,6 +81,177 @@ async function generateInitialPnlSnapshots(walletAddresses: string[]): Promise<v
 export async function v1Routes(fastify: FastifyInstance) {
   
   // =============================================================================
+  // PHASE 2: REAL-TIME STREAMING CONTROL ENDPOINTS
+  // =============================================================================
+  
+  // Start real-time streaming pipeline
+  fastify.post('/streaming/start', async (request, reply) => {
+    try {
+      console.log('🚀 Starting Phase 2 real-time streaming pipeline...')
+      
+      const { geyserService } = await import('../../services/geyser.service')
+      const { transactionProcessorService } = await import('../../services/transaction-processor.service')
+      const { pnlEngineService } = await import('../../services/pnl-engine.service')
+      
+      // Start all streaming services
+      await Promise.all([
+        geyserService.start(),
+        transactionProcessorService.start(),
+        pnlEngineService.start()
+      ])
+      
+      reply.send({
+        success: true,
+        message: 'Real-time streaming pipeline started successfully',
+        services: {
+          geyser: 'started',
+          transaction_processor: 'started',
+          pnl_engine: 'started'
+        },
+        timestamp: new Date().toISOString()
+      })
+      
+    } catch (error) {
+      console.error('❌ Error starting streaming pipeline:', error)
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to start streaming pipeline',
+        details: error.message
+      })
+    }
+  })
+  
+  // Stop real-time streaming pipeline
+  fastify.post('/streaming/stop', async (request, reply) => {
+    try {
+      console.log('🛑 Stopping real-time streaming pipeline...')
+      
+      const { geyserService } = await import('../../services/geyser.service')
+      const { transactionProcessorService } = await import('../../services/transaction-processor.service')
+      const { pnlEngineService } = await import('../../services/pnl-engine.service')
+      
+      // Stop all streaming services
+      await Promise.all([
+        geyserService.stop(),
+        transactionProcessorService.stop(),
+        pnlEngineService.stop()
+      ])
+      
+      reply.send({
+        success: true,
+        message: 'Real-time streaming pipeline stopped successfully',
+        services: {
+          geyser: 'stopped',
+          transaction_processor: 'stopped', 
+          pnl_engine: 'stopped'
+        },
+        timestamp: new Date().toISOString()
+      })
+      
+    } catch (error) {
+      console.error('❌ Error stopping streaming pipeline:', error)
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to stop streaming pipeline',
+        details: error.message
+      })
+    }
+  })
+  
+  // Get real-time streaming status
+  fastify.get('/streaming/status', async (request, reply) => {
+    try {
+      const { geyserService } = await import('../../services/geyser.service')
+      const { transactionProcessorService } = await import('../../services/transaction-processor.service')
+      const { pnlEngineService } = await import('../../services/pnl-engine.service')
+      const { MessageQueueService } = await import('../../services/message-queue.service')
+      const { RedisLeaderboardService } = await import('../../services/redis-leaderboard.service')
+      const { SSEService } = await import('../../services/sse.service')
+      
+      // Get status from all services
+      const [
+        geyserStatus,
+        processorStatus,
+        pnlStatus,
+        queueStatus,
+        leaderboardStats,
+        sseStatus
+      ] = await Promise.all([
+        geyserService.getStatus(),
+        transactionProcessorService.getStatus(),
+        pnlEngineService.getStatus(),
+        new MessageQueueService().getQueueStats(),
+        new RedisLeaderboardService().getLeaderboardStats(),
+        new SSEService().getConnectionStats()
+      ])
+      
+      // Get stream health details
+      const streamHealth = await geyserService.getStreamHealth()
+      
+      reply.send({
+        success: true,
+        phase: 'Phase 2 - Real-time Streaming',
+        services: {
+          geyser: {
+            ...geyserStatus,
+            stream_health: streamHealth
+          },
+          transaction_processor: processorStatus,
+          pnl_engine: pnlStatus,
+          message_queue: queueStatus,
+          redis_leaderboard: leaderboardStats,
+          sse: sseStatus
+        },
+        infrastructure: {
+          chainstack_plan: '$149/month - 5 streams, 50 accounts each',
+          max_capacity: '250 wallets',
+          current_usage: `${geyserStatus.subscribedAccounts} wallets tracked`,
+          performance_targets: {
+            latency: '< 1 second (blockchain to UI)',
+            leaderboard_queries: '< 1ms (Redis Sorted Sets)',
+            concurrent_connections: '1000+ (SSE)',
+            message_throughput: '10,000+ msgs/sec'
+          }
+        },
+        timestamp: new Date().toISOString()
+      })
+      
+    } catch (error) {
+      console.error('❌ Error getting streaming status:', error)
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to get streaming status',
+        details: error.message
+      })
+    }
+  })
+  
+  // Trigger manual PNL calculation for all wallets
+  fastify.post('/streaming/calculate-pnl', async (request, reply) => {
+    try {
+      console.log('🔄 Manual PNL calculation triggered...')
+      
+      const { pnlEngineService } = await import('../../services/pnl-engine.service')
+      
+      await pnlEngineService.manualCalculateAllPnl()
+      
+      reply.send({
+        success: true,
+        message: 'Manual PNL calculation completed for all wallets',
+        timestamp: new Date().toISOString()
+      })
+      
+    } catch (error) {
+      console.error('❌ Error in manual PNL calculation:', error)
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to calculate PNL',
+        details: error.message
+      })
+    }
+  })
+
+  // =============================================================================
   // SYSTEM A: KOL LEADERBOARD (Live Engine - Real-time KOL tracking)
   // =============================================================================
   

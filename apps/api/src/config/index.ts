@@ -21,6 +21,9 @@ const envSchema = z.object({
   PORT: z.string().transform(Number).default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   
+  // Redis Configuration
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+  
   // Leaderboard Configuration
   LEADERBOARD_DEFAULT_LIMIT: z.string().transform(Number).default(100),
   LEADERBOARD_MAX_LIMIT: z.string().transform(Number).default(500),
@@ -116,6 +119,10 @@ export const appConfig = {
   
   database: {
     url: config.DATABASE_URL,
+  },
+  
+  redis: {
+    url: config.REDIS_URL,
   },
   
   walletTracking: {
