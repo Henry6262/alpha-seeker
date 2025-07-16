@@ -586,4 +586,82 @@ export async function v1Routes(fastify: FastifyInstance) {
       })
     }
   })
+
+  // GEM FINDER ENDPOINTS
+  
+  // Get recent gem discoveries
+  fastify.get('/gems', async (request, reply) => {
+    try {
+      const { limit = 50 } = request.query as { limit?: number }
+      
+      const { GemFinderService } = await import('../../services/gem-finder.service.js')
+      const gemFinderService = new GemFinderService()
+      
+      const gems = await gemFinderService.getRecentGems(limit)
+      
+      return {
+        success: true,
+        data: gems,
+        meta: {
+          count: gems.length,
+          limit,
+          timestamp: new Date().toISOString()
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error fetching gems:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to fetch gem discoveries'
+      })
+    }
+  })
+  
+  // Get gem finder statistics
+  fastify.get('/gems/stats', async (request, reply) => {
+    try {
+      const { GemFinderService } = await import('../../services/gem-finder.service.js')
+      const gemFinderService = new GemFinderService()
+      
+      const stats = await gemFinderService.getGemStats()
+      
+      return {
+        success: true,
+        data: stats,
+        timestamp: new Date().toISOString()
+      }
+      
+    } catch (error) {
+      console.error('❌ Error fetching gem stats:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to fetch gem statistics'
+      })
+    }
+  })
+  
+  // Trigger manual gem analysis
+  fastify.post('/gems/analyze', async (request, reply) => {
+    try {
+      const { GemFinderService } = await import('../../services/gem-finder.service.js')
+      const gemFinderService = new GemFinderService()
+      
+      const gemCandidates = await gemFinderService.analyzeRecentActivity()
+      
+      return {
+        success: true,
+        message: `Analysis complete - found ${gemCandidates.length} potential gems`,
+        data: gemCandidates,
+        timestamp: new Date().toISOString()
+      }
+      
+    } catch (error) {
+      console.error('❌ Error triggering gem analysis:', error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to trigger gem analysis'
+      })
+    }
+  })
 } 
