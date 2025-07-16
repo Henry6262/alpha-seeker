@@ -2,6 +2,7 @@ import { Connection, PublicKey, ParsedInstruction, PartiallyDecodedInstruction }
 import { MessageQueueService } from './message-queue.service.js'
 import { RedisLeaderboardService } from './redis-leaderboard.service.js'
 import { SSEService } from './sse.service.js'
+import { GemFinderService } from './gem-finder.service.js'
 import { prisma } from '../lib/prisma.js'
 import { GeyserTransactionUpdate, DEX_PROGRAMS, isDexProgram, getDexProgramName } from '../types/index.js'
 import { extract } from '@jup-ag/instruction-parser'
@@ -40,6 +41,7 @@ export class TransactionProcessorService {
   private messageQueue: MessageQueueService
   private redisLeaderboard: RedisLeaderboardService
   private sseService: SSEService
+  private gemFinderService: GemFinderService
   private connection: Connection
   private isProcessing = false
   private processedCount = 0
@@ -64,6 +66,7 @@ export class TransactionProcessorService {
     this.messageQueue = new MessageQueueService()
     this.redisLeaderboard = new RedisLeaderboardService()
     this.sseService = new SSEService()
+    this.gemFinderService = new GemFinderService()
     
     // Use Chainstack's high-performance RPC endpoint
     const rpcEndpoint = process.env.CHAINSTACK_RPC_ENDPOINT || 
@@ -87,6 +90,7 @@ export class TransactionProcessorService {
       await this.messageQueue.start()
       await this.redisLeaderboard.start()
       await this.sseService.start()
+      await this.gemFinderService.start()
       
       // Subscribe to transaction queue
       await this.subscribeToTransactionQueue()
