@@ -2,12 +2,7 @@
 // Leaderboard Types
 // =================================
 
-export interface LeaderboardQuery {
-  timeframe?: '1h' | '1d' | '7d' | '30d'
-  ecosystem?: 'all' | 'pump.fun' | 'letsbonk.fun'
-  type?: 'pnl' | 'volume'
-  limit?: string
-}
+// LeaderboardQuery is now exported from api.types.ts to avoid duplicates
 
 export interface LeaderboardEntry {
   rank: number

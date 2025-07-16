@@ -1,7 +1,9 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { prisma } from '../../lib/prisma.js'
 import { 
-  LeaderboardQuery, 
+  LeaderboardQuery 
+} from '../../types/api.types.js'
+import { 
   LeaderboardResponse, 
   LeaderboardEntry, 
   WalletProfileResponse, 
@@ -18,11 +20,11 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
       timeframe = '1d', 
       ecosystem = 'all', 
       type = 'pnl',
-      limit = '100' 
+      limit = 100
     } = request.query
     
     // Validate type - only PNL supported in MVP
-    if (request.query.type === 'volume') {
+    if (type === 'volume') {
       return reply.status(400).send({
         success: false,
         error: 'Volume leaderboard has been removed from MVP. Only PNL leaderboard is supported.',
@@ -31,7 +33,7 @@ export async function leaderboardRoutes(fastify: FastifyInstance) {
     }
     
     // Convert limit to integer
-    const limitNumber = parseInt(limit, 10) || 100
+    const limitNumber = typeof limit === 'number' ? limit : parseInt(String(limit) || '100', 10) || 100
 
     try {
       const leaderboard = await prisma.duneLeaderboardCache.findMany({

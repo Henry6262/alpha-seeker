@@ -530,4 +530,60 @@ export async function v1Routes(fastify: FastifyInstance) {
       reply.send(response.json())
     })
   })
+
+  // =================================
+  // SSE (Server-Sent Events) ENDPOINTS
+  // =================================
+
+  // Live transaction feed for specific wallet
+  fastify.get('/sse/feed/:walletAddress', async (request, reply) => {
+    const { SSEService } = await import('../../services/sse.service.js')
+    const sseService = new SSEService()
+    await sseService.handleFeedConnection(request as any, reply)
+  })
+
+  // Live leaderboard updates with timeframe filtering
+  fastify.get('/sse/leaderboard', async (request, reply) => {
+    const { SSEService } = await import('../../services/sse.service.js')
+    const sseService = new SSEService()
+    await sseService.handleLeaderboardConnection(request as any, reply)
+  })
+
+  // Live gem discovery alerts
+  fastify.get('/sse/gems', async (request, reply) => {
+    const { SSEService } = await import('../../services/sse.service.js')
+    const sseService = new SSEService()
+    await sseService.handleGemConnection(request as any, reply)
+  })
+
+  // SSE connection status and health check
+  fastify.get('/sse/status', async (request, reply) => {
+    try {
+      const { SSEService } = await import('../../services/sse.service.js')
+      const sseService = new SSEService()
+      
+      return reply.send({
+        status: 'operational',
+        message: 'SSE service is ready for connections',
+        endpoints: {
+          feed: '/api/v1/sse/feed/:walletAddress',
+          leaderboard: '/api/v1/sse/leaderboard?timeframe=1d',
+          gems: '/api/v1/sse/gems'
+        },
+        features: [
+          'Real-time transaction feeds',
+          'Live leaderboard updates',
+          'Gem discovery alerts',
+          'Position change notifications'
+        ],
+        timestamp: new Date().toISOString()
+      })
+    } catch (error) {
+      console.error('❌ Error checking SSE status:', error)
+      return reply.status(500).send({
+        status: 'error',
+        message: 'SSE service unavailable'
+      })
+    }
+  })
 } 

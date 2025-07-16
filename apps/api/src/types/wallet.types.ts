@@ -75,7 +75,7 @@ export interface PnlSnapshot {
   createdAt: Date
 }
 
-export interface LeaderboardEntry {
+export interface WalletLeaderboardEntry {
   id: string
   walletAddress: string
   leaderboardType: 'pnl' | 'volume'

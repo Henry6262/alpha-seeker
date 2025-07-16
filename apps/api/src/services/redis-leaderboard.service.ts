@@ -101,10 +101,9 @@ export class RedisLeaderboardService {
         const rank = Math.floor(i / 2) + 1
         
         leaderboard.push({
-          walletAddress,
-          pnlUsd,
           rank,
-          period: timeframe
+          wallet_address: walletAddress,
+          pnl_usd: pnlUsd
         })
       }
       
@@ -136,10 +135,9 @@ export class RedisLeaderboardService {
       const rank = await this.redis.zrevrank(key, walletAddress)
       
       return {
-        walletAddress,
-        pnlUsd: parseFloat(pnlUsd),
         rank: rank !== null ? rank + 1 : 0, // ZREVRANK returns 0-based index
-        period: timeframe
+        wallet_address: walletAddress,
+        pnl_usd: parseFloat(pnlUsd)
       }
     } catch (error) {
       console.error(`❌ Failed to get rank for ${walletAddress}:`, error)
@@ -172,10 +170,9 @@ export class RedisLeaderboardService {
         const rank = startRank + Math.floor(i / 2)
         
         leaderboard.push({
-          walletAddress,
-          pnlUsd,
           rank,
-          period: timeframe
+          wallet_address: walletAddress,
+          pnl_usd: pnlUsd
         })
       }
       

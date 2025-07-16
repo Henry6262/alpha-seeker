@@ -58,7 +58,7 @@ export class MessageQueueService {
       type: 'transaction',
       payload: transactionData,
       timestamp: new Date(),
-      attempts: 0,
+      retryCount: 0,
       priority: 1
     }
 
@@ -82,7 +82,7 @@ export class MessageQueueService {
         timestamp: new Date()
       },
       timestamp: new Date(),
-      attempts: 0,
+      retryCount: 0,
       priority: 1
     }
 
@@ -103,7 +103,7 @@ export class MessageQueueService {
         timestamp: new Date()
       },
       timestamp: new Date(),
-      attempts: 0,
+      retryCount: 0,
       priority: 2 // Higher priority for PNL updates
     }
 
@@ -120,7 +120,7 @@ export class MessageQueueService {
       type: 'gem_discovery',
       payload: tokenData,
       timestamp: new Date(),
-      attempts: 0,
+      retryCount: 0,
       priority: 3 // Lower priority for gem discovery
     }
 

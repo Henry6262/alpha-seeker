@@ -30,7 +30,7 @@ export class GeyserService {
 
   constructor() {
     this.config = {
-      endpoint: appConfig.geyser.endpoint || 'yellowstone-solana-mainnet.core.chainstack.com',
+      endpoint: appConfig.geyser.endpoint || 'https://yellowstone-solana-mainnet.core.chainstack.com',
       token: appConfig.geyser.xToken || '',
       username: appConfig.geyser.username || '',
       password: appConfig.geyser.password || '',

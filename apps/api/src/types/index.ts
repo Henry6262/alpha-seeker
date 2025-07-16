@@ -115,8 +115,8 @@ export interface TradeHistory {
 export interface QueueMessage {
   id: string
   type: 'transaction' | 'account' | 'price' | 'leaderboard' | 'feed_update' | 'pnl_update' | 'gem_discovery'
-  data: any
-  payload?: any // Allow payload as optional for backwards compatibility
+  data?: any // Optional for backwards compatibility
+  payload?: any // Primary data field
   timestamp: Date
   priority: number
   retryCount: number
@@ -131,8 +131,8 @@ export interface RedisConfig {
   db?: number
 }
 
-// Redis leaderboard entry type alias
-export type RedisLeaderboardEntry = LeaderboardEntry
+// Redis leaderboard entry type alias (import from leaderboard.types.ts)
+export type RedisLeaderboardEntry = import('./leaderboard.types.js').LeaderboardEntry
 
 export interface ProcessingMetrics {
   processedCount: number
