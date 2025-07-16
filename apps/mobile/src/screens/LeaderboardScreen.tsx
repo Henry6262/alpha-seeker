@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, ActivityIndicator, Chip, Divider, SegmentedButtons } from 'react-native-paper';
+import { Text, Card, Button, ActivityIndicator, Chip, Divider, SegmentedButtons, Badge } from 'react-native-paper';
 import { 
   apiService, 
   LeaderboardResponse, 
@@ -9,6 +9,7 @@ import {
   KolLeaderboardEntry,
   EcosystemLeaderboardEntry
 } from '../services/api';
+import { sseService, SSEMessage } from '../services/sse';
 
 type LeaderboardType = 'kol' | 'ecosystem';
 
@@ -20,11 +21,111 @@ export default function LeaderboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<any>(null);
   const [timeframe, setTimeframe] = useState<'1h' | '1d' | '7d' | '30d'>('1d');
+  
+  // Real-time state
+  const [isSSEConnected, setIsSSEConnected] = useState(false);
+  const [sseError, setSSEError] = useState<string | null>(null);
+  const [realtimeEnabled, setRealtimeEnabled] = useState(true);
+  const [updateCount, setUpdateCount] = useState(0);
+  const lastUpdateTime = useRef<Date>(new Date());
 
   useEffect(() => {
     loadLeaderboardData();
     checkApiStatus();
   }, [timeframe, leaderboardType]);
+
+  // Setup real-time connections
+  useEffect(() => {
+    if (realtimeEnabled && leaderboardType === 'kol') {
+      connectToRealtimeUpdates();
+    } else {
+      disconnectFromRealtimeUpdates();
+    }
+
+    return () => {
+      disconnectFromRealtimeUpdates();
+    };
+  }, [realtimeEnabled, leaderboardType, timeframe]);
+
+  const connectToRealtimeUpdates = () => {
+    console.log('🔗 Connecting to real-time leaderboard updates...');
+    
+    sseService.connectToLeaderboard(timeframe, {
+      autoReconnect: true,
+      maxReconnectAttempts: 10,
+      reconnectDelay: 2000,
+      heartbeatTimeout: 70000
+    }, {
+      onOpen: () => {
+        console.log('✅ SSE leaderboard connection established');
+        setIsSSEConnected(true);
+        setSSEError(null);
+      },
+      onMessage: (message: SSEMessage) => {
+        handleRealtimeMessage(message);
+      },
+      onError: (error) => {
+        console.error('❌ SSE leaderboard error:', error);
+        setIsSSEConnected(false);
+        setSSEError('Connection lost - attempting to reconnect...');
+      },
+      onClose: () => {
+        console.log('🔌 SSE leaderboard connection closed');
+        setIsSSEConnected(false);
+      }
+    });
+  };
+
+  const disconnectFromRealtimeUpdates = () => {
+    console.log('🔌 Disconnecting from real-time updates');
+    sseService.disconnect();
+    setIsSSEConnected(false);
+  };
+
+  const handleRealtimeMessage = (message: SSEMessage) => {
+    console.log('📨 Real-time message received:', message.type);
+    
+    switch (message.type) {
+      case 'heartbeat':
+        // Just update connection status
+        lastUpdateTime.current = new Date();
+        break;
+        
+      case 'leaderboard':
+        if (message.data?.leaderboard && leaderboardType === 'kol') {
+          console.log('📊 Updating leaderboard data from real-time feed');
+          setKolData(prevData => ({
+            ...prevData,
+            data: message.data.leaderboard,
+            meta: {
+              ...prevData?.meta,
+              last_updated: message.data.timestamp,
+              source: 'Real-time Stream'
+            }
+          } as KolLeaderboardResponse));
+          setUpdateCount(prev => prev + 1);
+          lastUpdateTime.current = new Date();
+        }
+        break;
+        
+      case 'system':
+        if (message.data?.message?.includes('shutdown')) {
+          setSSEError('Server is shutting down');
+          setIsSSEConnected(false);
+        }
+        break;
+        
+      default:
+        console.log('🔍 Unhandled message type:', message.type, message.data);
+    }
+  };
+
+  const toggleRealtimeUpdates = () => {
+    setRealtimeEnabled(!realtimeEnabled);
+    if (!realtimeEnabled) {
+      setUpdateCount(0);
+    }
+  };
 
   const loadLeaderboardData = async () => {
     setLoading(true);
@@ -128,6 +229,52 @@ export default function LeaderboardScreen() {
           <Text style={styles.statusText}>
             📊 Architecture: {apiStatus.systemStatus?.architecture || 'Unknown'}
           </Text>
+        </Card.Content>
+      </Card>
+    );
+  };
+
+  const renderRealtimeStatus = () => {
+    if (leaderboardType !== 'kol') return null;
+
+    return (
+      <Card style={styles.realtimeCard}>
+        <Card.Content>
+          <View style={styles.realtimeHeader}>
+            <View style={styles.realtimeInfo}>
+              <Text style={styles.realtimeTitle}>📡 Real-time Updates</Text>
+              <View style={styles.statusBadges}>
+                <Badge 
+                  style={[styles.statusBadge, { backgroundColor: isSSEConnected ? '#4CAF50' : '#F44336' }]}
+                >
+                  {isSSEConnected ? 'Connected' : 'Disconnected'}
+                </Badge>
+                {updateCount > 0 && (
+                  <Badge style={[styles.statusBadge, { backgroundColor: '#2196F3' }]}>
+                    {`${updateCount} updates`}
+                  </Badge>
+                )}
+              </View>
+            </View>
+            <Button 
+              mode={realtimeEnabled ? 'contained' : 'outlined'}
+              onPress={toggleRealtimeUpdates}
+              compact
+              style={styles.realtimeToggle}
+            >
+              {realtimeEnabled ? 'Live' : 'Enable'}
+            </Button>
+          </View>
+          
+          {sseError && (
+            <Text style={styles.sseErrorText}>⚠️ {sseError}</Text>
+          )}
+          
+          {isSSEConnected && (
+            <Text style={styles.lastUpdateText}>
+              Last update: {lastUpdateTime.current.toLocaleTimeString()}
+            </Text>
+          )}
         </Card.Content>
       </Card>
     );
@@ -258,6 +405,7 @@ export default function LeaderboardScreen() {
 
       {renderLeaderboardTypeSelector()}
       {renderTimeframeChips()}
+      {renderRealtimeStatus()}
       {renderApiStatus()}
       
       {loading && (
@@ -435,5 +583,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#d32f2f',
     marginBottom: 12,
+  },
+  realtimeCard: {
+    marginBottom: 16,
+    backgroundColor: '#e8f5e8',
+  },
+  realtimeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  realtimeInfo: {
+    flex: 1,
+  },
+  realtimeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  statusBadges: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statusBadge: {
+    color: 'white',
+    fontSize: 12,
+  },
+  realtimeToggle: {
+    marginLeft: 12,
+  },
+  sseErrorText: {
+    fontSize: 14,
+    color: '#F44336',
+    marginTop: 4,
+  },
+  lastUpdateText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
 }); 

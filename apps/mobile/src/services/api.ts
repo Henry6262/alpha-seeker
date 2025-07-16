@@ -200,6 +200,25 @@ class ApiService {
   async getConfig() {
     return this.request('/config');
   }
+
+  // Gem Finder endpoints
+  async getGems(params: { limit?: number } = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+    
+    const queryString = searchParams.toString();
+    const endpoint = `/api/v1/gems${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request(endpoint);
+  }
+
+  async getGemStats() {
+    return this.request('/api/v1/gems/stats');
+  }
+
+  async triggerGemAnalysis() {
+    return this.request('/api/v1/gems/analyze', { method: 'POST' });
+  }
 }
 
 export const apiService = new ApiService();
