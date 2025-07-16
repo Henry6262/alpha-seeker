@@ -797,12 +797,24 @@ export class TransactionProcessorService {
     return fallbackPrices[mint] || 0.001 // Default small price for unknown tokens
   }
 
+  /**
+   * Convert human-readable token amount to raw amount using token decimals
+   */
+  private convertToRawAmount(amount: number, decimals: number): bigint {
+    // Convert to string with fixed decimals to avoid floating point precision issues
+    const multiplier = Math.pow(10, decimals)
+    const rawAmount = Math.floor(amount * multiplier)
+    return BigInt(rawAmount)
+  }
+
   private async storeTransactionData(
     swap: SwapData,
     inputToken: TokenMetadata | null,
     outputToken: TokenMetadata | null
   ): Promise<void> {
     try {
+      const outputDecimals = outputToken?.decimals || 9
+      
       // Store transaction
       await prisma.kolTransaction.upsert({
         where: { signature: swap.signature },
@@ -831,9 +843,9 @@ export class TransactionProcessorService {
           blockTime: swap.timestamp,
           kolAddress: swap.walletAddress,
           tokenMintAddress: swap.outputMint, // Focus on output token for PNL calculation
-          amountChangeRaw: BigInt(swap.outputAmount * Math.pow(10, outputToken?.decimals || 9)),
+          amountChangeRaw: this.convertToRawAmount(swap.outputAmount, outputDecimals),
           preBalanceRaw: BigInt(0), // Would need to track balances
-          postBalanceRaw: BigInt(swap.outputAmount * Math.pow(10, outputToken?.decimals || 9)),
+          postBalanceRaw: this.convertToRawAmount(swap.outputAmount, outputDecimals),
           usdValueAtTime: swap.usdValue ? Number(swap.usdValue) : null,
           instructionIndex: 0
         }
@@ -917,6 +929,10 @@ export class TransactionProcessorService {
       const amount = swap.outputAmount
       const usdCost = (swap.inputAmount * (await this.getTokenPrice(swap.inputMint) || 0))
       
+      // Convert human-readable amount to raw amount using token decimals
+      const decimals = tokenMeta?.decimals || 9
+      const rawAmount = this.convertToRawAmount(amount, decimals)
+      
       // Get existing position or create new one
       const existingPosition = await prisma.kolPosition.findUnique({
         where: {
@@ -929,7 +945,7 @@ export class TransactionProcessorService {
       
       if (existingPosition) {
         // Update existing position with average cost basis
-        const newTotalTokens = existingPosition.currentBalanceRaw + BigInt(amount)
+        const newTotalTokens = existingPosition.currentBalanceRaw + rawAmount
         const newTotalCost = Number(existingPosition.totalCostBasisUsd) + usdCost
         const newAvgCost = Number(newTotalTokens) > 0 ? newTotalCost / Number(newTotalTokens) : 0
         
@@ -954,7 +970,7 @@ export class TransactionProcessorService {
           data: {
             kolAddress: swap.walletAddress,
             tokenMintAddress: tokenMint,
-            currentBalanceRaw: BigInt(amount),
+            currentBalanceRaw: rawAmount,
             totalCostBasisUsd: usdCost,
             weightedAvgCostUsd: amount > 0 ? usdCost / amount : 0,
             lastUpdatedAt: new Date()
@@ -994,13 +1010,17 @@ export class TransactionProcessorService {
         return 0 // No position to sell from
       }
       
+      // Convert human-readable amount to raw amount using token decimals
+      const decimals = tokenMeta?.decimals || 9
+      const rawSoldAmount = this.convertToRawAmount(soldAmount, decimals)
+      
       // Calculate realized PNL using Average Cost Basis
       const avgCostPerToken = Number(position.weightedAvgCostUsd)
       const costBasisOfSoldTokens = avgCostPerToken * soldAmount
       const realizedPnl = usdReceived - costBasisOfSoldTokens
       
       // Update position
-      const balanceDiff = position.currentBalanceRaw - BigInt(soldAmount)
+      const balanceDiff = position.currentBalanceRaw - rawSoldAmount
       const newBalance = balanceDiff > 0n ? balanceDiff : 0n
       const newTotalCost = Math.max(0, Number(position.totalCostBasisUsd) - costBasisOfSoldTokens)
       
@@ -1024,7 +1044,7 @@ export class TransactionProcessorService {
           kolAddress: swap.walletAddress,
           tokenMintAddress: tokenMint,
           closingTransactionSignature: swap.signature,
-          quantitySold: BigInt(soldAmount),
+          quantitySold: rawSoldAmount,
           saleValueUsd: usdReceived,
           costBasisUsd: costBasisOfSoldTokens,
           realizedPnlUsd: realizedPnl,

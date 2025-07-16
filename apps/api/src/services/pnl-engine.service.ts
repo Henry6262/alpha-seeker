@@ -53,6 +53,16 @@ export class PnlEngineService {
     this.messageQueue = new MessageQueueService()
   }
 
+  /**
+   * Convert human-readable token amount to raw amount using token decimals
+   */
+  private convertToRawAmount(amount: number, decimals: number): bigint {
+    // Convert to string with fixed decimals to avoid floating point precision issues
+    const multiplier = Math.pow(10, decimals)
+    const rawAmount = Math.floor(amount * multiplier)
+    return BigInt(rawAmount)
+  }
+
   public async start(): Promise<void> {
     console.log('🚀 Starting PNL Engine service...')
     
@@ -134,7 +144,7 @@ export class PnlEngineService {
           data: {
             kolAddress: walletAddress,
             tokenMintAddress: tokenMint,
-            currentBalanceRaw: BigInt(amount * Math.pow(10, 9)), // Assume 9 decimals
+            currentBalanceRaw: this.convertToRawAmount(amount, 9), // Assume 9 decimals
             totalCostBasisUsd: costBasis,
             weightedAvgCostUsd: priceUsd,
             unrealizedPnlUsd: 0,
@@ -158,7 +168,7 @@ export class PnlEngineService {
             }
           },
           data: {
-            currentBalanceRaw: BigInt(newTotalBalance * Math.pow(10, 9)),
+            currentBalanceRaw: this.convertToRawAmount(newTotalBalance, 9),
             totalCostBasisUsd: newTotalCostBasis,
             weightedAvgCostUsd: newWeightedAvgCost,
             lastUpdatedAt: new Date()
@@ -223,7 +233,7 @@ export class PnlEngineService {
             }
           },
           data: {
-            currentBalanceRaw: BigInt(newBalance * Math.pow(10, 9)),
+            currentBalanceRaw: this.convertToRawAmount(newBalance, 9),
             totalCostBasisUsd: newTotalCostBasis,
             lastUpdatedAt: new Date()
           }
@@ -246,7 +256,7 @@ export class PnlEngineService {
           kolAddress: walletAddress,
           tokenMintAddress: tokenMint,
           closingTransactionSignature: `mock_tx_${Date.now()}`, // Would use actual transaction signature
-          quantitySold: BigInt(amount * Math.pow(10, 9)), // Convert to raw amount
+          quantitySold: this.convertToRawAmount(amount, 9), // Convert to raw amount
           saleValueUsd: saleValue,
           costBasisUsd: costBasisForSale,
           realizedPnlUsd: realizedPnl,

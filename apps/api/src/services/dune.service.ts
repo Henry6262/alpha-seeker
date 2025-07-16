@@ -141,19 +141,24 @@ export class DuneService {
         const traderData = await this.queryEcosystemLeaderboard(dune)
         
         // INSERT new data - map actual Dune structure to our schema
-        const entries = traderData.map((trader: DuneEcosystemTraderData, index: number) => ({
-          period,
-          rank: trader.rank || (index + 1),
-          walletAddress: trader.wallet,
-          pnlUsd: trader.total_realized_profit_usd,
-          winRate: trader.win_rate || null,
-          totalTrades: trader.total_trades || null,
-          notableWins: {
-            biggest_win: Math.max(trader.total_realized_profit_usd * 0.1, 1000),
-            best_roi: trader.roi_percentage || 0
-          },
-          lastUpdated: new Date()
-        }))
+        const entries = traderData.map((trader: DuneEcosystemTraderData, index: number) => {
+          // Ensure rank is always a valid integer
+          const cleanRank = Number.isInteger(trader.rank) ? trader.rank : (index + 1)
+          
+          return {
+            period,
+            rank: cleanRank,
+            walletAddress: trader.wallet,
+            pnlUsd: trader.total_realized_profit_usd,
+            winRate: trader.win_rate || null,
+            totalTrades: trader.total_trades || null,
+            notableWins: {
+              biggest_win: Math.max(trader.total_realized_profit_usd * 0.1, 1000),
+              best_roi: trader.roi_percentage || 0
+            },
+            lastUpdated: new Date()
+          }
+        })
 
         await prisma.duneLeaderboardCache.createMany({
           data: entries
