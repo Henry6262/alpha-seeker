@@ -18,7 +18,8 @@ const envSchema = z.object({
   CHAINSTACK_API_KEY: z.string().optional(),
   
   // Server Configuration
-  PORT: z.string().transform(Number).default(3000),
+  PORT: z.string().transform(Number),
+  HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   
   // Redis Configuration

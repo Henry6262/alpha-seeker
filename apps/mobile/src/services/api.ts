@@ -1,5 +1,7 @@
 /* eslint-env browser */
-const API_BASE_URL = 'http://localhost:3000';
+import { config, getApiUrl } from '../config';
+
+const API_BASE_URL = config.apiBaseUrl;
 
 export interface LeaderboardEntry {
   id: string;

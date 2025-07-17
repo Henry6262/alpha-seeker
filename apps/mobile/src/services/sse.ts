@@ -1,3 +1,6 @@
+import EventSource from 'react-native-event-source';
+import { config, getSSEUrl } from '../config';
+
 export interface SSEMessage {
   type: 'heartbeat' | 'transaction' | 'leaderboard' | 'gem' | 'position' | 'system';
   data: any;
@@ -25,8 +28,9 @@ export class SSEService {
   private onOpen?: () => void;
   private onClose?: () => void;
 
-  constructor(baseUrl: string = 'http://localhost:3000') {
-    this.baseUrl = baseUrl;
+  constructor() {
+    this.baseUrl = config.apiBaseUrl;
+    console.log('🔧 SSE Service initialized with baseUrl:', this.baseUrl);
   }
 
   /**
@@ -45,7 +49,7 @@ export class SSEService {
     this.setupOptions(options);
     this.setupCallbacks(callbacks);
     
-    const url = `${this.baseUrl}/api/v1/sse/feed/${walletAddress}`;
+    const url = getSSEUrl(`/feed/${walletAddress}`);
     this.connect(url);
   }
 
@@ -65,7 +69,7 @@ export class SSEService {
     this.setupOptions(options);
     this.setupCallbacks(callbacks);
     
-    const url = `${this.baseUrl}/api/v1/sse/leaderboard?timeframe=${timeframe}`;
+    const url = getSSEUrl(`/leaderboard?timeframe=${timeframe}`);
     this.connect(url);
   }
 
@@ -84,7 +88,7 @@ export class SSEService {
     this.setupOptions(options);
     this.setupCallbacks(callbacks);
     
-    const url = `${this.baseUrl}/api/v1/sse/gems`;
+    const url = getSSEUrl('/gems');
     this.connect(url);
   }
 
@@ -284,7 +288,7 @@ export class SSEService {
    */
   async checkServiceStatus(): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/sse/status`);
+      const response = await fetch(getSSEUrl('/status'));
       return await response.json();
     } catch (error) {
       console.error('❌ Failed to check SSE service status:', error);
