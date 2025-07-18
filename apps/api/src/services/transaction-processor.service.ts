@@ -268,11 +268,124 @@ export class TransactionProcessorService {
      dexProgram: string
    } | null> {
      try {
-       // For now, return null to focus on core functionality
-       // TODO: Implement proper swap parsing when needed
-       return null
+       // CRITICAL FIX: Actually parse transactions instead of returning null
+       logger.debug(`🔍 Parsing transaction ${txData.signature.slice(0, 8)}...`, null, 'TX-PARSER')
+       
+       if (!txData.signature) {
+         logger.warn('❌ Transaction missing signature', null, 'TX-PARSER')
+         return null
+       }
+       
+       // Get full transaction details from RPC
+       const txDetails = await this.connection.getParsedTransaction(txData.signature, {
+         maxSupportedTransactionVersion: 0
+       })
+       
+       if (!txDetails || !txDetails.meta || txDetails.meta.err) {
+         logger.debug(`⚠️ Transaction ${txData.signature.slice(0, 8)}... failed or not found`, null, 'TX-PARSER')
+         return null
+       }
+       
+       // Analyze token balance changes to detect swaps
+       const preBalances = txDetails.meta.preTokenBalances || []
+       const postBalances = txDetails.meta.postTokenBalances || []
+       
+       // Find the KOL wallet involved in this transaction
+       const accountKeys = txDetails.transaction.message.accountKeys.map((key: any) => 
+         typeof key === 'string' ? key : key.pubkey.toString()
+       )
+       
+       let kolWallet = null
+       for (const addr of accountKeys) {
+         if (this.kolWalletCache.has(addr)) {
+           kolWallet = addr
+           break
+         }
+       }
+       
+       if (!kolWallet) {
+         logger.debug(`⚠️ No KOL wallet found in transaction ${txData.signature.slice(0, 8)}...`, null, 'TX-PARSER')
+         return null
+       }
+       
+       logger.success(`🎯 Found KOL wallet ${kolWallet.slice(0, 8)}... in transaction ${txData.signature.slice(0, 8)}...`, null, 'TX-PARSER')
+       
+       // Analyze balance changes for this wallet
+       const walletPreBalances = preBalances.filter((b: any) => b.owner === kolWallet)
+       const walletPostBalances = postBalances.filter((b: any) => b.owner === kolWallet)
+       
+       let inputMint = ''
+       let outputMint = ''
+       let inputAmount = 0
+       let outputAmount = 0
+       
+               // Find input token (balance decreased)
+        for (const preBal of walletPreBalances) {
+          const postBal = walletPostBalances.find((p: any) => p.mint === preBal.mint)
+          
+          const preAmount = preBal.uiTokenAmount?.uiAmount || 0
+          const postAmount = postBal?.uiTokenAmount?.uiAmount || 0
+          
+          if (postBal && postAmount < preAmount && preAmount > 0) {
+            inputMint = preBal.mint
+            inputAmount = preAmount - postAmount
+            break
+          }
+        }
+        
+        // Find output token (balance increased)
+        for (const postBal of walletPostBalances) {
+          const preBal = walletPreBalances.find((p: any) => p.mint === postBal.mint)
+          
+          const postAmount = postBal.uiTokenAmount?.uiAmount || 0
+          const preAmount = preBal?.uiTokenAmount?.uiAmount || 0
+          
+          if (postAmount > preAmount && postAmount > 0) {
+            outputMint = postBal.mint
+            outputAmount = postAmount - preAmount
+            break
+          }
+        }
+       
+       if (!inputMint || !outputMint || inputAmount <= 0 || outputAmount <= 0) {
+         logger.debug(`⚠️ Could not identify swap pattern in ${txData.signature.slice(0, 8)}...`, {
+           inputMint: inputMint || 'none',
+           outputMint: outputMint || 'none',
+           inputAmount,
+           outputAmount
+         }, 'TX-PARSER')
+         return null
+       }
+       
+       // Determine DEX program
+       let dexProgram = 'Unknown'
+       const knownDexPrograms = {
+         'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4': 'Jupiter',
+         '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8': 'Raydium',
+         '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'Pump.fun'
+       }
+       
+       for (const addr of accountKeys) {
+         if (knownDexPrograms[addr as keyof typeof knownDexPrograms]) {
+           dexProgram = knownDexPrograms[addr as keyof typeof knownDexPrograms]
+           break
+         }
+       }
+       
+       const result = {
+         inputMint,
+         outputMint,
+         inputAmount,
+         outputAmount,
+         dexProgram
+       }
+       
+       logger.success(`💱 SWAP DETECTED: ${kolWallet.slice(0, 8)}... ${inputAmount.toFixed(4)} ${inputMint.slice(0, 8)}... → ${outputAmount.toFixed(4)} ${outputMint.slice(0, 8)}... on ${dexProgram}`, result, 'SWAP-DETECTED')
+       
+       return result
        
      } catch (error) {
+       logger.error(`❌ Error parsing transaction ${txData.signature}`, error, 'TX-PARSER')
        return null
      }
    }

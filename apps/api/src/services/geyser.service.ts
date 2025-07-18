@@ -323,7 +323,7 @@ export class GeyserService {
     logger.success('✅ Focused DEX monitoring started', null, 'GEYSER')
   }
 
-  private async handleOptimizedUpdate(streamId: string, update: any): Promise<void> {
+    private async handleOptimizedUpdate(streamId: string, update: any): Promise<void> {
     try {
       if (!update.transaction) return
       
@@ -335,28 +335,49 @@ export class GeyserService {
       
       if (!signature) return
       
-      // CRITICAL: Quick relevance check before processing
+      // CRITICAL: Detailed logging for transaction analysis
       const accounts = update.transaction.transaction?.message?.account_keys || []
-      const hasKolWallet = accounts.some((key: any) => 
-        this.subscribedAccounts.has(bs58.encode(key))
-      )
+      const accountAddresses = accounts.map((key: any) => bs58.encode(key))
       
-             const hasDexProgram = accounts.some((key: any) => {
-         const address = bs58.encode(key)
-         return Object.values(PRIORITY_DEX_PROGRAMS).includes(address as any)
-       })
+             // Check for KOL wallets
+       const kolWallets = accountAddresses.filter((addr: string) => this.subscribedAccounts.has(addr))
+       
+       // Check for DEX programs
+       const dexPrograms = accountAddresses.filter((addr: string) => 
+         Object.values(PRIORITY_DEX_PROGRAMS).includes(addr as any)
+       )
       
-      // Only process transactions involving KOL wallets AND DEX programs
-      if (!hasKolWallet || !hasDexProgram) {
-        return // Skip irrelevant transactions
+      // Log every transaction to see what we're getting
+      logger.info(`📨 Geyser ${streamId}: ${signature.slice(0, 8)}... | KOL Wallets: ${kolWallets.length} | DEX Programs: ${dexPrograms.length} | Total Accounts: ${accountAddresses.length}`, {
+        signature: signature.slice(0, 8),
+        streamId,
+                 kolWallets: kolWallets.map((w: string) => w.slice(0, 8)),
+         dexPrograms: dexPrograms.map((d: string) => {
+          const programNames = {
+            'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4': 'Jupiter',
+            '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8': 'Raydium',
+            '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'Pump.fun'
+          }
+          return programNames[d as keyof typeof programNames] || d.slice(0, 8)
+        }),
+        totalAccounts: accountAddresses.length,
+                 allAccounts: accountAddresses.map((a: string) => a.slice(0, 8))
+      }, 'GEYSER-DATA')
+      
+      // Only process transactions involving KOL wallets
+      if (kolWallets.length === 0) {
+        logger.debug(`⚠️ No KOL wallets in ${signature.slice(0, 8)}...`, null, 'GEYSER-FILTER')
+        return // Skip non-KOL transactions
       }
       
       this.relevantTransactionCount++
       
-      // Log only important swaps (rate limited)
-      if (this.relevantTransactionCount % 10 === 0) {
-        logger.logSwapDetected(signature, 'KOL', 'DEX', 'SWAP')
-      }
+      // Always log KOL transactions
+             logger.success(`🎯 KOL TRANSACTION: ${signature.slice(0, 8)}... | Wallets: ${kolWallets.map((w: string) => w.slice(0, 8)).join(', ')} | DEX: ${dexPrograms.length > 0 ? 'Yes' : 'No'}`, {
+         kolWallets: kolWallets.map((w: string) => w.slice(0, 8)),
+        dexPrograms: dexPrograms.length,
+        signature: signature.slice(0, 8)
+      }, 'KOL-TX')
       
       // Create optimized transaction update
       const txUpdate: GeyserTransactionUpdate = {
@@ -366,15 +387,17 @@ export class GeyserService {
           ? new Date(update.transaction.block_time * 1000) 
           : new Date(),
         transaction: update.transaction,
-        accounts
+        accounts: accountAddresses
       }
       
       // Queue for processing
       await this.messageQueue.publishRawTransaction(txUpdate)
       
+      logger.success(`📤 Queued KOL transaction ${signature.slice(0, 8)}... for processing`, null, 'GEYSER-QUEUE')
+      
     } catch (error) {
+      logger.error(`❌ Error handling Geyser update for ${streamId}`, error, 'GEYSER')
       logger.incrementErrorCount()
-      // Skip error logging for performance unless critical
     }
   }
 

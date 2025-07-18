@@ -241,11 +241,10 @@ export class MessageQueueService {
         const pnlLength = await this.redis.llen('queue:pnl-updates')
         const gemLength = await this.redis.llen('queue:gem-discovery')
 
-        // Log each queue status using the logger
-        logger.logQueueStatus('raw-transactions', rawTxLength)
-        logger.logQueueStatus('feed-updates', feedLength)
-        logger.logQueueStatus('pnl-updates', pnlLength)
-        logger.logQueueStatus('gem-discovery', gemLength)
+        // Only log if there are messages to avoid spam
+        if (rawTxLength > 0 || feedLength > 0 || pnlLength > 0 || gemLength > 0) {
+          logger.debug(`📦 Queue Status: raw=${rawTxLength}, feed=${feedLength}, pnl=${pnlLength}, gem=${gemLength}`, null, 'QUEUE-MONITOR')
+        }
 
         // Log warnings for high queue depths
         if (rawTxLength > 100) {
