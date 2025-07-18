@@ -193,6 +193,7 @@ export interface SSEConnection {
   channels: string[]
   lastActivity: Date
   isActive: boolean
+  reply: any // Store the Fastify reply object for writing SSE data
 }
 
 export interface SSEMessage {

@@ -1,6 +1,7 @@
 import Client, { SubscribeRequest } from '@triton-one/yellowstone-grpc'
 import bs58 from 'bs58'
 import { appConfig } from '../config/index.js'
+import { logger } from './logger.service.js'
 import { 
   GeyserConfig, 
   GeyserStatus, 
@@ -355,16 +356,18 @@ export class GeyserService {
 
   private async handleStreamUpdate(streamId: string, update: any): Promise<void> {
     try {
-      console.log('🔍 Debug - Stream update:', update)
       if (update.transaction) {
         // Extract signature from Buffer and convert to Base58
         const signatureBuffer = update.transaction.transaction.signature
         const signature = signatureBuffer ? bs58.encode(signatureBuffer) : undefined
         
         if (!signature) {
-          console.log('⚠️ Transaction update missing signature, skipping...')
+          logger.warn('Transaction update missing signature, skipping', { streamId }, 'GEYSER')
           return
         }
+        
+        // Log the Geyser event
+        logger.logGeyserEvent(streamId, 'transaction', signature)
         
         // Process transaction update
         const txUpdate: GeyserTransactionUpdate = {
@@ -376,22 +379,27 @@ export class GeyserService {
           transaction: update.transaction,
           accounts: update.transaction.transaction?.message?.account_keys || []
         }
-        console.log('🔍 Debug - Transaction update:', txUpdate)
+        
         // Push to message queue for processing
         await this.messageQueue.publishRawTransaction(txUpdate)
         
-        console.log(`📨 Processed transaction ${signature.slice(0, 8)}... on ${streamId}`)
+        logger.debug(`Queued transaction ${signature.slice(0, 8)}... from ${streamId}`, {
+          slot: txUpdate.slot,
+          accounts: txUpdate.accounts?.length || 0
+        }, 'GEYSER')
       }
       
       if (update.account) {
         // Process account update - convert pubkey Buffer to Base58
         const pubkeyBuffer = update.account.account.pubkey
         const pubkey = pubkeyBuffer ? bs58.encode(pubkeyBuffer) : 'unknown'
-        console.log(`📊 Account update on ${streamId}: ${pubkey}`)
+        
+        logger.logGeyserEvent(streamId, 'account')
+        logger.debug(`Account update on ${streamId}: ${pubkey.slice(0, 8)}...`, null, 'GEYSER')
       }
       
     } catch (error) {
-      console.error(`❌ Error handling stream update on ${streamId}:`, error)
+      logger.error(`Error handling stream update on ${streamId}`, error, 'GEYSER')
     }
   }
 

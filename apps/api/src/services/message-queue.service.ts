@@ -1,5 +1,6 @@
 import Redis from 'ioredis'
 import { appConfig } from '../config/index.js'
+import { logger } from './logger.service.js'
 import { QueueMessage } from '../types/index.js'
 
 export class MessageQueueService {
@@ -240,28 +241,27 @@ export class MessageQueueService {
         const pnlLength = await this.redis.llen('queue:pnl-updates')
         const gemLength = await this.redis.llen('queue:gem-discovery')
 
-        const stats = {
-          rawTransactions: rawTxLength,
-          feedUpdates: feedLength,
-          pnlUpdates: pnlLength,
-          gemDiscovery: gemLength
+        // Log each queue status using the logger
+        logger.logQueueStatus('raw-transactions', rawTxLength)
+        logger.logQueueStatus('feed-updates', feedLength)
+        logger.logQueueStatus('pnl-updates', pnlLength)
+        logger.logQueueStatus('gem-discovery', gemLength)
+
+        // Log warnings for high queue depths
+        if (rawTxLength > 100) {
+          logger.warn(`High queue depth - Raw transactions: ${rawTxLength} waiting`, null, 'QUEUE-MONITOR')
         }
 
-        // Log if queue depth is getting high
-        if (stats.rawTransactions > 100) {
-          console.warn(`⚠️ High queue depth - Raw transactions: ${stats.rawTransactions} waiting`)
+        if (feedLength > 50) {
+          logger.warn(`High queue depth - Feed updates: ${feedLength} waiting`, null, 'QUEUE-MONITOR')
         }
 
-        if (stats.feedUpdates > 50) {
-          console.warn(`⚠️ High queue depth - Feed updates: ${stats.feedUpdates} waiting`)
-        }
-
-        if (stats.pnlUpdates > 25) {
-          console.warn(`⚠️ High queue depth - PNL updates: ${stats.pnlUpdates} waiting`)
+        if (pnlLength > 25) {
+          logger.warn(`High queue depth - PNL updates: ${pnlLength} waiting`, null, 'QUEUE-MONITOR')
         }
 
       } catch (error) {
-        console.error('❌ Queue monitoring error:', error)
+        logger.error('Queue monitoring error', error, 'QUEUE-MONITOR')
       }
     }, 30000) // Check every 30 seconds
   }

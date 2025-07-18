@@ -1,8 +1,9 @@
 import { Connection, PublicKey, ParsedInstruction, PartiallyDecodedInstruction } from '@solana/web3.js'
 import { MessageQueueService } from './message-queue.service.js'
 import { RedisLeaderboardService } from './redis-leaderboard.service.js'
-import { SSEService } from './sse.service.js'
+import { sseService } from './sse.service.js'
 import { GemFinderService } from './gem-finder.service.js'
+import { logger } from './logger.service.js'
 import { prisma } from '../lib/prisma.js'
 import { GeyserTransactionUpdate, DEX_PROGRAMS, isDexProgram, getDexProgramName } from '../types/index.js'
 import { extract } from '@jup-ag/instruction-parser'
@@ -40,7 +41,6 @@ interface PnlUpdate {
 export class TransactionProcessorService {
   private messageQueue: MessageQueueService
   private redisLeaderboard: RedisLeaderboardService
-  private sseService: SSEService
   private gemFinderService: GemFinderService
   private connection: Connection
   private isProcessing = false
@@ -65,7 +65,6 @@ export class TransactionProcessorService {
   constructor() {
     this.messageQueue = new MessageQueueService()
     this.redisLeaderboard = new RedisLeaderboardService()
-    this.sseService = new SSEService()
     this.gemFinderService = new GemFinderService()
     
     // Use Chainstack's high-performance RPC endpoint
@@ -83,16 +82,18 @@ export class TransactionProcessorService {
   }
 
   public async start(): Promise<void> {
-    console.log('🚀 Starting Transaction Processor service...')
+    logger.info('Starting Transaction Processor service...', null, 'TX-PROCESSOR')
     
     try {
       // Initialize dependencies
+      logger.debug('Initializing dependencies...', null, 'TX-PROCESSOR')
       await this.messageQueue.start()
       await this.redisLeaderboard.start()
-      await this.sseService.start()
+      await sseService.start()
       await this.gemFinderService.start()
       
       // Subscribe to transaction queue
+      logger.debug('Subscribing to transaction queue...', null, 'TX-PROCESSOR')
       await this.subscribeToTransactionQueue()
       
       this.isProcessing = true
@@ -100,16 +101,20 @@ export class TransactionProcessorService {
       // Start periodic token metadata refresh
       this.startTokenMetadataRefresh()
       
-      console.log('✅ Transaction Processor service started successfully')
+      logger.success('Transaction Processor service started successfully', {
+        rpcEndpoint: this.connection.rpcEndpoint,
+        batchSize: this.BATCH_SIZE,
+        maxWorkers: this.MAX_CONCURRENT_WORKERS
+      }, 'TX-PROCESSOR')
       
     } catch (error) {
-      console.error('❌ Failed to start Transaction Processor service:', error)
+      logger.error('Failed to start Transaction Processor service', error, 'TX-PROCESSOR')
       throw error
     }
   }
 
   private async subscribeToTransactionQueue(): Promise<void> {
-    console.log('📥 Subscribing to raw transaction queue...')
+    logger.info('Subscribing to raw transaction queue...', null, 'TX-PROCESSOR')
     
     await this.messageQueue.subscribe('raw-transactions', async (messageData: any) => {
       if (!this.isProcessing) return
@@ -118,22 +123,33 @@ export class TransactionProcessorService {
         // Extract transaction data from QueueMessage payload
         const transactionData: GeyserTransactionUpdate = messageData.payload || messageData
         
+        // Start transaction lifecycle tracking
+        if (transactionData.signature) {
+          logger.startTransaction(transactionData.signature, 'unknown') // Will update wallet address later
+          logger.updateTransactionStage(transactionData.signature, 'QUEUED', 'success', {
+            slot: transactionData.slot,
+            queueDepth: this.processingQueue.length
+          })
+        }
+        
         // Add to processing queue for batch processing
         this.processingQueue.push(transactionData)
         
         // Process batch when it reaches target size or after timeout
         if (this.processingQueue.length >= this.BATCH_SIZE && !this.isProcessingBatch) {
+          logger.logQueueStatus('processing', this.processingQueue.length, true)
           await this.processBatch()
         }
         
       } catch (error) {
         this.errorCount++
-        console.error('❌ Error adding transaction to queue:', error)
+        logger.error('Error adding transaction to queue', error, 'TX-PROCESSOR')
       }
     })
     
     // Start periodic batch processing for smaller batches
     this.startPeriodicBatchProcessing()
+    logger.success('Successfully subscribed to transaction queue', null, 'TX-PROCESSOR')
   }
 
   private async processBatch(): Promise<void> {
@@ -234,47 +250,73 @@ export class TransactionProcessorService {
   }
 
   private async processTransaction(txUpdate: GeyserTransactionUpdate): Promise<void> {
+    const signature = txUpdate.signature
+    
     try {
+      // Update lifecycle stage - starting transaction parsing
+      logger.updateTransactionStage(signature, 'PARSING', 'pending')
+      
       // Parse transaction for DEX swaps
-      console.log('🔍 Debug - Processing transaction:', txUpdate)
       const swaps = await this.parseTransactionForSwaps(txUpdate)
       
       if (swaps.length === 0) {
+        logger.updateTransactionStage(signature, 'PARSING', 'skipped', { reason: 'No DEX swaps found' })
+        logger.completeTransaction(signature, true)
         return // No swaps found, skip processing
       }
       
-      console.log(`🔍 Found ${swaps.length} swaps in transaction ${txUpdate.signature.slice(0, 8)}...`)
+      logger.updateTransactionStage(signature, 'PARSING', 'success', { 
+        swapsFound: swaps.length,
+        dexPrograms: [...new Set(swaps.map(s => s.dexProgram))]
+      })
+      
+      // Update lifecycle stage - processing swaps
+      logger.updateTransactionStage(signature, 'SWAP_PROCESSING', 'pending', { swapCount: swaps.length })
       
       // Process each swap
       for (const swap of swaps) {
         await this.processSwap(swap)
       }
       
+      logger.updateTransactionStage(signature, 'SWAP_PROCESSING', 'success')
+      logger.completeTransaction(signature, true)
+      
     } catch (error) {
-      console.error(`❌ Error processing transaction ${txUpdate.signature}:`, error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.updateTransactionStage(signature, 'PROCESSING', 'error', null, errorMessage)
+      logger.error(`Error processing transaction ${signature}`, error, 'TX-PROCESSOR')
+      logger.completeTransaction(signature, false)
       throw error
     }
   }
 
   private async parseTransactionForSwaps(txUpdate: GeyserTransactionUpdate): Promise<SwapData[]> {
     const swaps: SwapData[] = []
+    const signature = txUpdate.signature
     
     try {
-      console.log('🔍 Debug - Parsing transaction:', txUpdate.signature)
+      logger.debug(`Parsing transaction for swaps: ${signature}`, null, 'TX-PARSER')
       
-      if (!txUpdate.signature) {
-        console.log('⚠️ Transaction missing signature, skipping parse...')
+      if (!signature) {
+        logger.logValidationFailure('unknown', 'Transaction missing signature', txUpdate)
         return swaps
       }
       
       // OPTIMIZATION: Pre-filter using transaction data from Geyser
       if (!this.isLikelyDexTransaction(txUpdate)) {
+        logger.logValidationFailure(signature, 'Not a DEX transaction', {
+          accounts: txUpdate.accounts?.length || 0,
+          hasKnownDexPrograms: false
+        })
         return swaps // Skip non-DEX transactions immediately
       }
       
       // Check RPC rate limit before making call
       if (!this.canMakeRpcCall()) {
-        console.log('⚠️ RPC rate limit reached, skipping transaction parse...')
+        logger.logValidationFailure(signature, 'RPC rate limit reached', {
+          currentCallCount: this.rpcCallCount,
+          limit: this.RPC_RATE_LIMIT
+        })
         return swaps
       }
       
@@ -524,14 +566,25 @@ export class TransactionProcessorService {
   }
 
   private async processSwap(swap: SwapData): Promise<void> {
+    const signature = swap.signature
+    
     try {
-      console.log(`💱 Processing swap: ${swap.inputAmount} ${swap.inputMint.slice(0, 8)} → ${swap.outputAmount} ${swap.outputMint.slice(0, 8)}`)
+      // Update lifecycle stage - enriching metadata
+      logger.updateTransactionStage(signature, 'METADATA_ENRICHMENT', 'pending')
       
       // Enrich with token metadata
       const [inputToken, outputToken] = await Promise.all([
         this.getTokenMetadata(swap.inputMint),
         this.getTokenMetadata(swap.outputMint)
       ])
+      
+      logger.updateTransactionStage(signature, 'METADATA_ENRICHMENT', 'success', {
+        inputToken: inputToken?.symbol || 'Unknown',
+        outputToken: outputToken?.symbol || 'Unknown'
+      })
+      
+      // Update lifecycle stage - fetching prices
+      logger.updateTransactionStage(signature, 'PRICE_FETCHING', 'pending')
       
       // Get current token prices
       const [inputPrice, outputPrice] = await Promise.all([
@@ -544,24 +597,94 @@ export class TransactionProcessorService {
       const outputUsdValue = (outputPrice || 0) * swap.outputAmount
       swap.usdValue = Math.max(inputUsdValue, outputUsdValue) // Use higher value for volume calculation
       
+      logger.updateTransactionStage(signature, 'PRICE_FETCHING', 'success', {
+        inputPrice: inputPrice || 0,
+        outputPrice: outputPrice || 0,
+        usdValue: swap.usdValue
+      })
+      
+      // Log the swap details
+      logger.logSwap(
+        signature,
+        inputToken?.symbol || swap.inputMint.slice(0, 8),
+        outputToken?.symbol || swap.outputMint.slice(0, 8),
+        swap.inputAmount,
+        swap.outputAmount,
+        swap.usdValue || 0,
+        swap.dexProgram
+      )
+      
+      // Update lifecycle stage - storing data
+      logger.updateTransactionStage(signature, 'DATABASE_STORAGE', 'pending')
+      
       // Store transaction in database
       await this.storeTransactionData(swap, inputToken, outputToken)
+      
+      logger.updateTransactionStage(signature, 'DATABASE_STORAGE', 'success')
+      
+      // Update lifecycle stage - calculating PNL
+      logger.updateTransactionStage(signature, 'PNL_CALCULATION', 'pending')
       
       // Calculate PNL updates
       const pnlUpdate = await this.calculatePnlUpdate(swap, inputToken, outputToken, inputPrice, outputPrice)
       
       if (pnlUpdate) {
+        logger.updateTransactionStage(signature, 'PNL_CALCULATION', 'success', {
+          realizedPnl: pnlUpdate.realizedPnl,
+          totalPnl: pnlUpdate.totalPnl
+        })
+        
+        // Log PNL calculation
+        const tradeType = this.getTradeType(swap)
+        logger.logPnl(
+          swap.walletAddress,
+          outputToken?.symbol || 'Unknown',
+          tradeType,
+          pnlUpdate.realizedPnl,
+          pnlUpdate.unrealizedPnl,
+          pnlUpdate.totalPnl
+        )
+        
+        // Update lifecycle stage - updating leaderboard
+        logger.updateTransactionStage(signature, 'LEADERBOARD_UPDATE', 'pending')
+        
         // Update Redis leaderboard
         await this.updateLeaderboard(pnlUpdate)
         
+        logger.updateTransactionStage(signature, 'LEADERBOARD_UPDATE', 'success')
+        
+        // Update lifecycle stage - pushing SSE updates
+        logger.updateTransactionStage(signature, 'SSE_BROADCAST', 'pending')
+        
         // Push live updates via SSE
         await this.pushLiveUpdates(swap, pnlUpdate)
+        
+        logger.updateTransactionStage(signature, 'SSE_BROADCAST', 'success')
+      } else {
+        logger.updateTransactionStage(signature, 'PNL_CALCULATION', 'skipped', { reason: 'No PNL update calculated' })
       }
       
     } catch (error) {
-      console.error(`❌ Error processing swap ${swap.signature}:`, error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.updateTransactionStage(signature, 'SWAP_PROCESSING', 'error', null, errorMessage)
+      logger.error(`Error processing swap ${signature}`, error, 'TX-PROCESSOR')
       throw error
     }
+  }
+  
+  private getTradeType(swap: SwapData): 'buy' | 'sell' | 'swap' {
+    const baseCurrencies = [
+      'So11111111111111111111111111111111111111112', // SOL
+      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+      'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
+    ]
+    
+    const isInputBase = baseCurrencies.includes(swap.inputMint)
+    const isOutputBase = baseCurrencies.includes(swap.outputMint)
+    
+    if (isInputBase && !isOutputBase) return 'buy'
+    if (!isInputBase && isOutputBase) return 'sell'
+    return 'swap'
   }
 
   private async getTokenMetadata(mint: string): Promise<TokenMetadata | null> {
@@ -1113,7 +1236,7 @@ export class TransactionProcessorService {
   private async pushLiveUpdates(swap: SwapData, pnlUpdate: PnlUpdate): Promise<void> {
     try {
       // Push transaction feed update to specific wallet channel
-      this.sseService.sendTransactionUpdate(swap.walletAddress, {
+      sseService.sendTransactionUpdate(swap.walletAddress, {
         signature: swap.signature,
         inputAmount: swap.inputAmount,
         outputAmount: swap.outputAmount,
@@ -1125,13 +1248,13 @@ export class TransactionProcessorService {
       })
       
       // Push position update to wallet channel
-      this.sseService.sendPositionUpdate(swap.walletAddress, pnlUpdate)
+      sseService.sendPositionUpdate(swap.walletAddress, pnlUpdate)
       
       // Push leaderboard updates for all timeframes
-      this.sseService.sendLeaderboardUpdate('1h', { updated: swap.walletAddress, timestamp: new Date() })
-      this.sseService.sendLeaderboardUpdate('1d', { updated: swap.walletAddress, timestamp: new Date() })
-      this.sseService.sendLeaderboardUpdate('7d', { updated: swap.walletAddress, timestamp: new Date() })
-      this.sseService.sendLeaderboardUpdate('30d', { updated: swap.walletAddress, timestamp: new Date() })
+      sseService.sendLeaderboardUpdate('1h', { updated: swap.walletAddress, timestamp: new Date() })
+      sseService.sendLeaderboardUpdate('1d', { updated: swap.walletAddress, timestamp: new Date() })
+      sseService.sendLeaderboardUpdate('7d', { updated: swap.walletAddress, timestamp: new Date() })
+      sseService.sendLeaderboardUpdate('30d', { updated: swap.walletAddress, timestamp: new Date() })
       
       console.log(`📡 Pushed live updates for ${swap.signature} to wallet ${swap.walletAddress}`)
       
@@ -1154,7 +1277,7 @@ export class TransactionProcessorService {
     
     await this.messageQueue.shutdown()
     await this.redisLeaderboard.shutdown()
-    await this.sseService.shutdown()
+    await sseService.shutdown()
     
     this.tokenCache.clear()
     this.priceCache.clear()

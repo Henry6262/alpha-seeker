@@ -166,7 +166,7 @@ export async function v1Routes(fastify: FastifyInstance) {
       const { pnlEngineService } = await import('../../services/pnl-engine.service')
       const { MessageQueueService } = await import('../../services/message-queue.service')
       const { RedisLeaderboardService } = await import('../../services/redis-leaderboard.service')
-      const { SSEService } = await import('../../services/sse.service')
+      const { sseService } = await import('../../services/sse.service')
       
       // Get status from all services
       const [
@@ -182,7 +182,7 @@ export async function v1Routes(fastify: FastifyInstance) {
         pnlEngineService.getStatus(),
         new MessageQueueService().getQueueStats(),
         new RedisLeaderboardService().getLeaderboardStats(),
-        new SSEService().getStats()
+        sseService.getStats()
       ])
       
       // Get stream health details
@@ -272,7 +272,7 @@ export async function v1Routes(fastify: FastifyInstance) {
         orderBy: {
           totalPnlUsd: 'desc'
         },
-        take: parseInt(limit),
+                take: parseInt(limit),
         include: {
           kolWallet: {
             select: {
@@ -288,8 +288,8 @@ export async function v1Routes(fastify: FastifyInstance) {
       const leaderboardData = kolLeaderboard.map((snapshot: any, index: number) => ({
         rank: index + 1,
         wallet_address: snapshot.kolAddress,
-        curated_name: snapshot.wallet.curatedName,
-        twitter_handle: snapshot.wallet.twitterHandle,
+        curated_name: snapshot.kolWallet.curatedName,
+        twitter_handle: snapshot.kolWallet.twitterHandle,
         total_pnl_usd: snapshot.totalPnlUsd.toNumber(),
         realized_pnl_usd: snapshot.realizedPnlUsd.toNumber(),
         unrealized_pnl_usd: snapshot.unrealizedPnlUsd?.toNumber() || 0,
@@ -314,9 +314,11 @@ export async function v1Routes(fastify: FastifyInstance) {
       
     } catch (error) {
       console.error('❌ Error fetching KOL leaderboard:', error)
+      console.error('❌ Full error details:', JSON.stringify(error, null, 2))
       reply.status(500).send({
         success: false,
-        error: 'Failed to fetch KOL leaderboard'
+        error: 'Failed to fetch KOL leaderboard',
+        details: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   })
@@ -537,30 +539,26 @@ export async function v1Routes(fastify: FastifyInstance) {
 
   // Live transaction feed for specific wallet
   fastify.get('/sse/feed/:walletAddress', async (request, reply) => {
-    const { SSEService } = await import('../../services/sse.service.js')
-    const sseService = new SSEService()
+    const { sseService } = await import('../../services/sse.service.js')
     await sseService.handleFeedConnection(request as any, reply)
   })
 
   // Live leaderboard updates with timeframe filtering
   fastify.get('/sse/leaderboard', async (request, reply) => {
-    const { SSEService } = await import('../../services/sse.service.js')
-    const sseService = new SSEService()
+    const { sseService } = await import('../../services/sse.service.js')
     await sseService.handleLeaderboardConnection(request as any, reply)
   })
 
   // Live gem discovery alerts
   fastify.get('/sse/gems', async (request, reply) => {
-    const { SSEService } = await import('../../services/sse.service.js')
-    const sseService = new SSEService()
+    const { sseService } = await import('../../services/sse.service.js')
     await sseService.handleGemConnection(request as any, reply)
   })
 
   // SSE connection status and health check
   fastify.get('/sse/status', async (request, reply) => {
     try {
-      const { SSEService } = await import('../../services/sse.service.js')
-      const sseService = new SSEService()
+      const { sseService } = await import('../../services/sse.service.js')
       
       return reply.send({
         status: 'operational',

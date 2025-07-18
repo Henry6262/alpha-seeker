@@ -52,7 +52,8 @@ export class SSEService {
       walletAddress,
       channels: [`feed:${walletAddress}`],
       lastActivity: new Date(),
-      isActive: true
+      isActive: true,
+      reply
     }
 
     this.connections.set(connectionId, connection)
@@ -109,7 +110,8 @@ export class SSEService {
       clientId,
       channels: [`leaderboard:${timeframe}`],
       lastActivity: new Date(),
-      isActive: true
+      isActive: true,
+      reply
     }
 
     this.connections.set(connectionId, connection)
@@ -165,7 +167,8 @@ export class SSEService {
       clientId,
       channels: ['gems'],
       lastActivity: new Date(),
-      isActive: true
+      isActive: true,
+      reply
     }
 
     this.connections.set(connectionId, connection)
@@ -291,10 +294,9 @@ export class SSEService {
     try {
       const sseData = this.formatSSEMessage(message)
       
-      // Write to the response stream
-      const request = this.getRequestFromConnection(connectionId)
-      if (request?.reply?.raw?.write) {
-        request.reply.raw.write(sseData)
+      // Write to the response stream using stored reply object
+      if (connection.reply?.raw?.write) {
+        connection.reply.raw.write(sseData)
         connection.lastActivity = new Date()
         return true
       }
@@ -402,14 +404,7 @@ export class SSEService {
     return `sse-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   }
 
-  /**
-   * Get request object from connection (placeholder - needs actual implementation)
-   */
-  private getRequestFromConnection(connectionId: string): any {
-    // This would need to be implemented based on how we store the request/reply objects
-    // For now, we'll handle this in the connection handlers directly
-    return null
-  }
+
 
   /**
    * Get connection statistics
@@ -460,4 +455,8 @@ export class SSEService {
     
     console.log('✅ SSE service shut down successfully')
   }
-} 
+}
+
+// Create and export singleton instance
+export const sseService = new SSEService()
+export default sseService 

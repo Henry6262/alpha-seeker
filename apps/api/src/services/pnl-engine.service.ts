@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js'
 import { RedisLeaderboardService } from './redis-leaderboard.service.js'
-import { SSEService } from './sse.service.js'
+import { sseService } from './sse.service.js'
 import { MessageQueueService } from './message-queue.service.js'
 
 interface TokenPosition {
@@ -34,7 +34,6 @@ interface TokenPrice {
 
 export class PnlEngineService {
   private redisLeaderboard: RedisLeaderboardService
-  private sseService: SSEService
   private messageQueue: MessageQueueService
   private isRunning = false
   private calculationInterval: ReturnType<typeof setInterval> | null = null
@@ -49,7 +48,6 @@ export class PnlEngineService {
 
   constructor() {
     this.redisLeaderboard = new RedisLeaderboardService()
-    this.sseService = new SSEService()
     this.messageQueue = new MessageQueueService()
   }
 
@@ -69,7 +67,7 @@ export class PnlEngineService {
     try {
       // Initialize dependencies
       await this.redisLeaderboard.start()
-      await this.sseService.start()
+      await sseService.start()
       await this.messageQueue.start()
       
       // Subscribe to PNL update messages
@@ -539,6 +537,68 @@ export class PnlEngineService {
         await this.updatePnlSnapshots(wallet.address)
       }
     }
+    
+    // Send updated leaderboard data via SSE for all timeframes after calculations
+    console.log('📡 Sending leaderboard updates via SSE...')
+    const timeframes = ['1h', '1d', '7d', '30d']
+    for (const timeframe of timeframes) {
+      await this.sendLeaderboardUpdate(timeframe)
+    }
+  }
+
+  /**
+   * Send updated leaderboard data via SSE
+   */
+  private async sendLeaderboardUpdate(timeframe: string): Promise<void> {
+    try {
+      // Get fresh leaderboard data
+      const leaderboardData = await prisma.kolPnlSnapshot.findMany({
+        where: {
+          period: timeframe.toUpperCase()
+        },
+        orderBy: {
+          totalPnlUsd: 'desc'
+        },
+        take: 50,
+        include: {
+          kolWallet: {
+            select: {
+              address: true,
+              curatedName: true,
+              twitterHandle: true
+            }
+          }
+        }
+      })
+
+      // Transform data for frontend
+      const transformedData = leaderboardData.map((snapshot: any, index: number) => ({
+        rank: index + 1,
+        wallet_address: snapshot.kolAddress,
+        curated_name: snapshot.kolWallet.curatedName,
+        twitter_handle: snapshot.kolWallet.twitterHandle,
+        total_pnl_usd: snapshot.totalPnlUsd.toNumber(),
+        realized_pnl_usd: snapshot.realizedPnlUsd.toNumber(),
+        unrealized_pnl_usd: snapshot.unrealizedPnlUsd?.toNumber() || 0,
+        roi_percentage: snapshot.roiPercentage?.toNumber() || 0,
+        win_rate: snapshot.winRate?.toNumber() || 0,
+        total_trades: snapshot.totalTrades,
+        total_volume_usd: snapshot.totalVolumeUsd?.toNumber() || 0,
+        snapshot_timestamp: snapshot.snapshotTimestamp
+      }))
+
+      // Send via SSE with full leaderboard data
+      sseService.sendLeaderboardUpdate(timeframe, {
+        timeframe,
+        leaderboard: transformedData,
+        timestamp: new Date().toISOString()
+      })
+      
+      console.log(`📡 Sent leaderboard update via SSE for ${timeframe}: ${transformedData.length} entries`)
+      
+    } catch (error) {
+      console.error(`❌ Error sending leaderboard update for ${timeframe}:`, error)
+    }
   }
 
   public async stop(): Promise<void> {
@@ -570,6 +630,7 @@ export class PnlEngineService {
   public async manualCalculateAllPnl(): Promise<void> {
     console.log('🔄 Manual PNL calculation triggered for all wallets...')
     await this.runPeriodicCalculations()
+    console.log('✅ Manual PNL calculation completed - SSE updates sent')
   }
 }
 

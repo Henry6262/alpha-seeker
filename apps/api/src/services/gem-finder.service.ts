@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js'
 import { MessageQueueService } from './message-queue.service.js'
-import { SSEService } from './sse.service.js'
+import { sseService } from './sse.service.js'
 import { RedisLeaderboardService } from './redis-leaderboard.service.js'
 
 interface GemCandidate {
@@ -26,7 +26,7 @@ interface TokenAnalytics {
 
 export class GemFinderService {
   private messageQueue: MessageQueueService
-  private sseService: SSEService
+
   private redisLeaderboard: RedisLeaderboardService
   private isRunning = false
   
@@ -55,7 +55,7 @@ export class GemFinderService {
 
   constructor() {
     this.messageQueue = new MessageQueueService()
-    this.sseService = new SSEService()
+
     this.redisLeaderboard = new RedisLeaderboardService()
   }
 
@@ -65,7 +65,7 @@ export class GemFinderService {
     try {
       // Initialize dependencies
       await this.messageQueue.start()
-      await this.sseService.start()
+      await sseService.start()
       await this.redisLeaderboard.start()
       
       this.isRunning = true
@@ -451,7 +451,7 @@ export class GemFinderService {
       }
       
       // Send via SSE
-      this.sseService.sendGemAlert(alertData)
+      sseService.sendGemAlert(alertData)
       
       // Also publish to message queue for other services
       await this.messageQueue.publish('gem_discovery', {
