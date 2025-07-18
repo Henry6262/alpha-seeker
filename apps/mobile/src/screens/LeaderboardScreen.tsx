@@ -92,19 +92,31 @@ export default function LeaderboardScreen() {
         break;
         
       case 'leaderboard':
-        if (message.data?.leaderboard && leaderboardType === 'kol') {
-          console.log('📊 Updating leaderboard data from real-time feed');
-          setKolData(prevData => ({
-            ...prevData,
-            data: message.data.leaderboard,
-            meta: {
-              ...prevData?.meta,
-              last_updated: message.data.timestamp,
-              source: 'Real-time Stream'
-            }
-          } as KolLeaderboardResponse));
-          setUpdateCount(prev => prev + 1);
-          lastUpdateTime.current = new Date();
+        if (message.data && leaderboardType === 'kol') {
+          console.log('📊 Received leaderboard update via SSE');
+          console.log('📊 Leaderboard data:', JSON.stringify(message.data).substring(0, 200) + '...');
+          
+          // If we receive actual leaderboard data array, update the state
+          if (Array.isArray(message.data.leaderboard)) {
+            console.log('📊 Updating leaderboard data from real-time feed with', message.data.leaderboard.length, 'entries');
+            setKolData(prevData => ({
+              success: true,
+              data: message.data.leaderboard,
+              meta: {
+                timeframe: message.data.timeframe || '1d',
+                count: message.data.leaderboard.length,
+                source: 'Real-time Stream',
+                last_updated: message.data.timestamp || new Date().toISOString()
+              }
+            } as KolLeaderboardResponse));
+            setUpdateCount(prev => prev + 1);
+            lastUpdateTime.current = new Date();
+          } else {
+            // Handle simple update notifications
+            console.log('📊 Received leaderboard change notification');
+            setUpdateCount(prev => prev + 1);
+            lastUpdateTime.current = new Date();
+          }
         }
         break;
         

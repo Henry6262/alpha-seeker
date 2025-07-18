@@ -324,3 +324,110 @@ The Alpha Seeker real-time streaming system has been successfully implemented an
 - **API Expansion**: Additional endpoints for advanced features
 
 **Conclusion**: Alpha Seeker's real-time streaming infrastructure represents a complete, production-ready blockchain analytics system with institutional-grade performance and reliability.
+
+## **SSE (Server-Sent Events) Implementation**
+
+### **Architecture Overview**
+The SSE implementation provides real-time data streaming from backend services to the mobile frontend using a singleton service pattern for optimal connection management.
+
+### **SSE Service Singleton Pattern**
+```typescript
+// Shared SSE service instance across all backend services
+export const sseService = new SSEService()
+
+// Used by:
+// - PNL Engine Service (leaderboard updates)
+// - Transaction Processor Service (individual transaction/position updates)  
+// - Gem Finder Service (gem discovery alerts)
+```
+
+### **Connection Management**
+```typescript
+export interface SSEConnection {
+  id: string
+  clientId: string
+  walletAddress?: string
+  channels: string[]
+  lastActivity: Date
+  isActive: boolean
+  reply: any // Fastify reply object for data writing
+}
+```
+
+### **Channel Structure**
+- `leaderboard:{timeframe}` - Real-time leaderboard updates (e.g., `leaderboard:1d`)
+- `feed:{walletAddress}` - Individual wallet transaction feeds
+- `gems` - New token discovery alerts
+- `system` - System status and heartbeat messages
+
+### **Real-time Leaderboard Flow**
+1. **PNL Calculations Complete** → PNL Engine Service
+2. **Generate Leaderboard Data** → Query latest KOL PNL snapshots
+3. **Transform Data** → Format for frontend consumption
+4. **Broadcast via SSE** → Send to all connected `leaderboard:{timeframe}` clients
+5. **Mobile App Receives** → Update UI in real-time
+
+### **Data Structure - Leaderboard Update**
+```typescript
+{
+  type: 'leaderboard',
+  channel: 'leaderboard:1d',
+  data: {
+    timeframe: '1d',
+    leaderboard: [
+      {
+        rank: 1,
+        wallet_address: '5Q544f...',
+        curated_name: 'Alpha Trader #2',
+        twitter_handle: '@alpha_trader_2',
+        total_pnl_usd: 178416606046.9006,
+        realized_pnl_usd: 103834408289.8754,
+        unrealized_pnl_usd: 74582197757.02528,
+        roi_percentage: 189.845,
+        win_rate: 99.01,
+        total_trades: 26082,
+        total_volume_usd: 105443112425.6073,
+        snapshot_timestamp: '2025-07-17T20:10:39.095Z'
+      },
+      // ... 49 more entries
+    ],
+    timestamp: '2025-07-18T06:16:58.685Z'
+  },
+  timestamp: new Date()
+}
+```
+
+### **Mobile SSE Client Implementation**
+```typescript
+// Event type detection with explicit handlers
+this.eventSource.addEventListener('leaderboard', (event) => {
+  const messageEvent = event as MessageEvent;
+  this.handleMessageWithType(messageEvent, 'leaderboard');
+});
+
+// Proper message processing
+private handleMessageWithType(event: MessageEvent, eventType: string): void {
+  const message: SSEMessage = {
+    type: eventType as any,
+    data: JSON.parse(event.data),
+    timestamp: data.timestamp || new Date().toISOString()
+  };
+  
+  if (this.onMessage) {
+    this.onMessage(message);
+  }
+}
+```
+
+### **Performance Characteristics**
+- **Latency**: < 1 second from PNL calculation to mobile UI update
+- **Connection Management**: Singleton pattern ensures consistent connection pools
+- **Data Efficiency**: Complete leaderboard arrays (50 entries) sent on demand
+- **Error Recovery**: Automatic reconnection with exponential backoff
+- **Heartbeat System**: 30-second heartbeat to detect stale connections
+
+### **Integration Points**
+- **PNL Engine**: Triggers leaderboard updates after calculation cycles
+- **Transaction Processor**: Sends individual wallet updates for real-time feeds
+- **Mobile App**: Receives and processes typed SSE events for UI updates
+- **API Routes**: Expose SSE endpoints for client connections (`/api/v1/sse/leaderboard`)

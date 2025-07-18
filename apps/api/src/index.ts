@@ -158,8 +158,8 @@ process.on('SIGTERM', gracefulShutdown)
 // Start server
 const start = async () => {
   try {
-    const host = process.env.HOST
-    const port = process.env.PORT
+    const host = process.env.HOST || '0.0.0.0'
+    const port = parseInt(process.env.PORT || '3001')
     
     await fastify.listen({ host, port })
     

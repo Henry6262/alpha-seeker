@@ -57,6 +57,13 @@ export interface GeyserStatus {
   phase?: 'Phase 1 - Dune Analytics' | 'Phase 2 - Real-time Streaming'
   endpoint?: string
   streamManager?: MultiStreamManager
+  performance?: {
+    totalTransactions: number
+    relevantTransactions: number
+    transactionsPerSecond: number
+    relevanceRate: number
+    uptime: number
+  }
 }
 
 // =================================

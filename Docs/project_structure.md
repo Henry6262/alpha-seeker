@@ -492,3 +492,49 @@ The project uses a monorepo structure with pnpm workspaces. Key configuration fi
 
 ### Next Priority: Data Population
 The only missing piece is connecting the Dune Analytics API to populate the leaderboard with actual PNL data. The infrastructure is 100% ready. 
+
+### **Real-time Services (`apps/api/src/services/`)**
+
+#### **SSE Service (`sse.service.ts`)**
+**Purpose**: Server-Sent Events for real-time data streaming to mobile clients
+**Pattern**: Singleton service shared across all backend services
+**Key Features**:
+- Channel-based message routing (`leaderboard:1d`, `feed:wallet`, `gems`)
+- Connection management with heartbeat system
+- Fastify reply object storage for data streaming
+- Multi-client broadcasting capabilities
+
+**Usage Example**:
+```typescript
+import { sseService } from './sse.service.js'
+
+// Send leaderboard update
+sseService.sendLeaderboardUpdate('1d', {
+  timeframe: '1d',
+  leaderboard: [...],
+  timestamp: new Date().toISOString()
+})
+
+// Broadcast to channel
+sseService.broadcastToChannel('leaderboard:1d', {
+  type: 'leaderboard',
+  data: leaderboardData,
+  timestamp: new Date()
+})
+```
+
+#### **PNL Engine Service (`pnl-engine.service.ts`)**
+**Enhanced Features**:
+- Real-time SSE leaderboard broadcasting
+- Complete leaderboard data transformation
+- Multi-timeframe SSE updates (1h, 1d, 7d, 30d)
+- Integration with shared SSE service
+
+**SSE Integration Points**:
+```typescript
+// After PNL calculations
+const timeframes = ['1h', '1d', '7d', '30d']
+for (const timeframe of timeframes) {
+  await this.sendLeaderboardUpdate(timeframe)
+}
+``` 

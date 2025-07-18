@@ -301,6 +301,53 @@ export class MessageQueueService {
   }
 
   /**
+   * Get queue depth for monitoring
+   */
+  public async getQueueDepth(queueName: string): Promise<number> {
+    return await this.redis.llen(`queue:${queueName}`)
+  }
+
+  /**
+   * Pop message from Redis list queue (RPOP)
+   */
+  public async popMessage(queueName: string): Promise<any | null> {
+    const fullQueueName = `queue:${queueName}`
+    const messageStr = await this.redis.rpop(fullQueueName)
+    
+    if (!messageStr) {
+      return null
+    }
+    
+    try {
+      return JSON.parse(messageStr)
+    } catch (error) {
+      logger.error(`Failed to parse message from ${queueName}`, error, 'MESSAGE-QUEUE')
+      return null
+    }
+  }
+
+  /**
+   * Bulk pop messages for batch processing
+   */
+  public async popMessages(queueName: string, count: number = 10): Promise<any[]> {
+    const fullQueueName = `queue:${queueName}`
+    const messages: any[] = []
+    
+    for (let i = 0; i < count; i++) {
+      const messageStr = await this.redis.rpop(fullQueueName)
+      if (!messageStr) break
+      
+      try {
+        messages.push(JSON.parse(messageStr))
+      } catch (error) {
+        logger.error(`Failed to parse bulk message from ${queueName}`, error, 'MESSAGE-QUEUE')
+      }
+    }
+    
+    return messages
+  }
+
+  /**
    * Clear all queues (useful for development/testing)
    */
   public async clearAllQueues(): Promise<void> {
@@ -319,7 +366,38 @@ export class MessageQueueService {
       await this.redis.del(queue)
     }
     
-    console.log('✅ All queues cleared')
+    logger.success('All queues cleared', { clearedQueues: queues.length }, 'MESSAGE-QUEUE')
+  }
+
+  /**
+   * Emergency queue clearing for specific queue
+   */
+  public async clearQueue(queueName: string): Promise<number> {
+    const fullQueueName = `queue:${queueName}`
+    const deletedCount = await this.redis.del(fullQueueName)
+    
+    logger.warn(`Cleared queue ${queueName}`, { deletedEntries: deletedCount }, 'MESSAGE-QUEUE')
+    return deletedCount
+  }
+
+  /**
+   * Generic publish method for backward compatibility
+   */
+  public async publish(queueName: string, data: any): Promise<void> {
+    const message: QueueMessage = {
+      id: `${queueName}-${Date.now()}`,
+      type: 'gem_discovery', // Default to gem_discovery for backward compatibility
+      payload: data,
+      timestamp: new Date(),
+      retryCount: 0,
+      priority: 1
+    }
+
+    // Use Redis List as a queue (LPUSH pattern)
+    await this.redis.lpush(`queue:${queueName}`, JSON.stringify(message))
+    
+    // Also publish to subscribers for real-time processing
+    await this.redis.publish(`channel:${queueName}`, JSON.stringify(message))
   }
 
   /**

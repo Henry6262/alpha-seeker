@@ -155,28 +155,34 @@ export class SSEService {
 
       // Handle specific event types
       this.eventSource.addEventListener('heartbeat', (event) => {
-        this.handleMessage(event as MessageEvent);
+        const messageEvent = event as MessageEvent;
+        this.handleMessageWithType(messageEvent, 'heartbeat');
         this.resetHeartbeatTimer();
       });
 
       this.eventSource.addEventListener('transaction', (event) => {
-        this.handleMessage(event as MessageEvent);
+        const messageEvent = event as MessageEvent;
+        this.handleMessageWithType(messageEvent, 'transaction');
       });
 
       this.eventSource.addEventListener('leaderboard', (event) => {
-        this.handleMessage(event as MessageEvent);
+        const messageEvent = event as MessageEvent;
+        this.handleMessageWithType(messageEvent, 'leaderboard');
       });
 
       this.eventSource.addEventListener('gem', (event) => {
-        this.handleMessage(event as MessageEvent);
+        const messageEvent = event as MessageEvent;
+        this.handleMessageWithType(messageEvent, 'gem');
       });
 
       this.eventSource.addEventListener('position', (event) => {
-        this.handleMessage(event as MessageEvent);
+        const messageEvent = event as MessageEvent;
+        this.handleMessageWithType(messageEvent, 'position');
       });
 
       this.eventSource.addEventListener('system', (event) => {
-        this.handleMessage(event as MessageEvent);
+        const messageEvent = event as MessageEvent;
+        this.handleMessageWithType(messageEvent, 'system');
       });
 
     } catch (error) {
@@ -189,13 +195,23 @@ export class SSEService {
    * Handle incoming messages
    */
   private handleMessage(event: MessageEvent): void {
+    this.handleMessageWithType(event, 'message');
+  }
+
+  /**
+   * Handle incoming messages with explicit type
+   */
+  private handleMessageWithType(event: MessageEvent, eventType: string): void {
     try {
       const data = JSON.parse(event.data);
+      
       const message: SSEMessage = {
-        type: (event as any).type || 'message',
+        type: eventType as any,
         data,
         timestamp: data.timestamp || new Date().toISOString()
       };
+
+      console.log(`📨 SSE message - Type: ${eventType}, Data:`, JSON.stringify(data).substring(0, 100) + '...');
 
       if (this.onMessage) {
         this.onMessage(message);

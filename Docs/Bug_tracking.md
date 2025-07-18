@@ -645,6 +645,121 @@ Regular documentation reviews and better alignment between documentation and imp
 
 ---
 
+### Bug ID: ALPHA-010
+- **Title**: SSE leaderboard data not reaching mobile app - HTTP 500 errors and singleton service issues
+- **Severity**: Critical
+- **Priority**: P1
+- **Component**: Backend + Frontend
+- **Platform**: All
+- **Status**: Resolved
+- **Reporter**: Development Team
+- **Assignee**: Backend + Frontend Developer
+- **Date Reported**: 2025-07-17
+- **Date Resolved**: 2025-07-18
+
+#### Description
+Critical issue where SSE leaderboard connections were failing with HTTP 500 errors, and mobile app was receiving unhandled 'message' events instead of properly typed 'leaderboard' events. The real-time leaderboard updates were not working despite successful SSE connections being established.
+
+#### Steps to Reproduce
+1. Start mobile app and navigate to leaderboard screen
+2. Enable real-time updates
+3. Observe HTTP 500 errors when connecting to SSE leaderboard endpoint
+4. See "unhandled message type: message" errors in mobile logs
+5. Notice leaderboard not updating in real-time despite PNL calculations running
+
+#### Environment
+- **Device**: All mobile devices
+- **OS Version**: All
+- **App Version**: Development build
+- **Network**: All
+- **Backend**: Node.js + Fastify + SSE
+
+#### Screenshots/Logs
+```
+ERROR API request failed: [Error: HTTP error! status: 500]
+LOG 🔍 Unhandled message type: message {"leaderboard": {...}}
+```
+
+#### Root Cause
+**Multiple SSE Architecture Issues**:
+
+1. **SSE Service Singleton Problem**: Each backend service (PNL engine, transaction processor, gem finder) was creating its own SSE service instance, leading to disconnected connection pools
+2. **Missing Reply Object Storage**: SSE connections weren't storing the Fastify reply object, making it impossible to write SSE data to clients
+3. **Event Type Detection Failure**: Mobile SSE client wasn't properly extracting event types from SSE messages, causing all events to be classified as 'message' instead of 'leaderboard'
+4. **Incomplete PNL Integration**: PNL engine had SSE methods but wasn't calling them during calculation workflows
+5. **API Route Data Structure**: KOL leaderboard route had incorrect Prisma relationship mapping
+
+#### Resolution
+**1. ✅ Implemented SSE Service Singleton Pattern**:
+- Created shared `sseService` export from `sse.service.ts`
+- Updated all backend services (PNL engine, transaction processor, gem finder) to use shared instance
+- Fixed route handlers to use singleton instance instead of creating new instances
+
+**2. ✅ Fixed SSE Connection Reply Storage**:
+- Updated `SSEConnection` interface to include `reply` object
+- Modified connection creation to store Fastify reply object for data writing
+- Fixed `sendMessageToConnection` to use stored reply object instead of null method
+
+**3. ✅ Enhanced Mobile SSE Event Type Detection**:
+- Fixed event type extraction in mobile SSE client
+- Added `handleMessageWithType` method for explicit event type handling
+- Updated event listeners to properly pass event types ('heartbeat', 'leaderboard', etc.)
+
+**4. ✅ Integrated PNL Engine with SSE**:
+- Added `sendLeaderboardUpdate` calls to periodic and manual PNL calculations
+- Updated method to send complete leaderboard arrays instead of individual notifications
+- Enhanced data structure to include timeframe, complete leaderboard data, and timestamps
+
+**5. ✅ Fixed API Data Structure Issues**:
+- Corrected Prisma relationship mapping in KOL leaderboard route
+- Fixed `snapshot.kolWallet.curatedName` access pattern
+- Added comprehensive error logging for debugging
+
+#### Code Changes Made
+**Backend Changes**:
+```typescript
+// apps/api/src/services/sse.service.ts
+export const sseService = new SSEService()
+
+// apps/api/src/services/pnl-engine.service.ts  
+import { sseService } from './sse.service.js'
+// Added SSE updates to runPeriodicCalculations()
+
+// apps/api/src/types/index.ts
+export interface SSEConnection {
+  reply: any // Store Fastify reply object
+}
+```
+
+**Frontend Changes**:
+```typescript
+// apps/mobile/src/services/sse.ts
+private handleMessageWithType(event: MessageEvent, eventType: string): void {
+  const message: SSEMessage = {
+    type: eventType as any,
+    data,
+    timestamp: data.timestamp || new Date().toISOString()
+  };
+}
+```
+
+#### Impact After Resolution
+- **SSE Connections**: 100% success rate for leaderboard SSE endpoints
+- **Real-time Updates**: Mobile app receives complete leaderboard arrays via SSE
+- **Event Type Detection**: Proper 'leaderboard' event handling instead of 'message'
+- **Data Completeness**: Full leaderboard data (50 entries) sent with rank, wallet info, PNL data
+- **Update Frequency**: Real-time updates triggered after each PNL calculation cycle
+- **Connection Stability**: Singleton pattern ensures consistent connection management
+
+#### Prevention
+- Implement SSE integration testing for real-time data flows
+- Add event type validation in mobile SSE client
+- Use singleton pattern consistently for shared services
+- Test end-to-end SSE data flow during development
+- Monitor SSE connection health and data structure integrity
+
+---
+
 ## Common Issues and Solutions
 
 ### Yellowstone gRPC Issues

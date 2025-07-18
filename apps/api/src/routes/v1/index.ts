@@ -252,6 +252,159 @@ export async function v1Routes(fastify: FastifyInstance) {
   })
 
   // =============================================================================
+  // EMERGENCY QUEUE MANAGEMENT ENDPOINTS
+  // =============================================================================
+  
+  // Emergency queue clearing (for massive backlogs like 358k messages)
+  fastify.post('/emergency/clear-queue', async (request, reply) => {
+    try {
+      console.log('🚨 EMERGENCY: Clearing massive transaction queue backlog...')
+      
+      const { MessageQueueService } = await import('../../services/message-queue.service')
+      const messageQueue = new MessageQueueService()
+      await messageQueue.start()
+      
+      const queueDepth = await messageQueue.getQueueDepth('raw-transactions')
+      console.log(`⚠️ Queue depth before clearing: ${queueDepth.toLocaleString()} messages`)
+      
+      const clearedCount = await messageQueue.clearQueue('raw-transactions')
+      
+      reply.send({
+        success: true,
+        data: {
+          message: '🎉 Emergency queue clearing completed!',
+          previousQueueDepth: queueDepth,
+          clearedMessages: clearedCount,
+          recommendation: 'System should now process transactions in real-time',
+          timestamp: new Date().toISOString()
+        }
+      })
+      
+    } catch (error) {
+      console.error('❌ Error in emergency queue clearing:', error)
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to clear emergency queue',
+        details: error instanceof Error ? error.message : String(error)
+      })
+    }
+  })
+
+  // Get queue status and health metrics
+  fastify.get('/emergency/queue-status', async (request, reply) => {
+    try {
+      const { MessageQueueService } = await import('../../services/message-queue.service')
+      const messageQueue = new MessageQueueService()
+      await messageQueue.start()
+      
+      const queueStats = await messageQueue.getQueueStats()
+      const rawTxDepth = queueStats.rawTransactions.waiting
+      
+      // Assess queue health
+      let status = 'healthy'
+      let recommendations = []
+      
+      if (rawTxDepth > 100000) {
+        status = 'critical'
+        recommendations.push('🚨 EMERGENCY: Clear queue immediately to prevent system failure')
+        recommendations.push('🔧 Consider increasing worker count or RPC rate limits')
+      } else if (rawTxDepth > 10000) {
+        status = 'warning'
+        recommendations.push('⚠️ High queue depth detected - monitor closely')
+        recommendations.push('🔧 Consider temporary queue clearing')
+      } else if (rawTxDepth > 1000) {
+        status = 'caution'
+        recommendations.push('📊 Queue depth elevated - normal for high activity periods')
+      } else {
+        recommendations.push('✅ Queue depth healthy - system processing efficiently')
+      }
+      
+      reply.send({
+        success: true,
+        data: {
+          status,
+          queueStats,
+          health: {
+            status,
+            rawTransactionsDepth: rawTxDepth,
+            estimatedDrainTime: rawTxDepth > 0 ? `${Math.ceil(rawTxDepth / 100)} minutes at 100 TPS` : '0 minutes',
+            recommendations
+          },
+          actions: {
+            clearQueue: rawTxDepth > 1000 ? 'POST /api/v1/emergency/clear-queue' : 'Not recommended',
+            restartServices: 'POST /api/v1/streaming/stop then /api/v1/streaming/start'
+          },
+          timestamp: new Date().toISOString()
+        }
+      })
+      
+    } catch (error) {
+      console.error('❌ Error getting queue status:', error)
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to get queue status',
+        details: error instanceof Error ? error.message : String(error)
+      })
+    }
+  })
+
+  // Emergency system restart (clear queues + restart services)
+  fastify.post('/emergency/restart-system', async (request, reply) => {
+    try {
+      console.log('🚨 EMERGENCY: Full system restart with queue clearing...')
+      
+      // Step 1: Stop all services
+      const { geyserService } = await import('../../services/geyser.service')
+      const { transactionProcessorService } = await import('../../services/transaction-processor.service')
+      const { pnlEngineService } = await import('../../services/pnl-engine.service')
+      const { MessageQueueService } = await import('../../services/message-queue.service')
+      
+      console.log('🛑 Stopping all streaming services...')
+      await Promise.all([
+        geyserService.stop(),
+        transactionProcessorService.stop(),
+        pnlEngineService.stop()
+      ])
+      
+      // Step 2: Clear all queues
+      console.log('🧹 Clearing all message queues...')
+      const messageQueue = new MessageQueueService()
+      await messageQueue.start()
+      await messageQueue.clearAllQueues()
+      
+      // Step 3: Restart all services
+      console.log('🚀 Restarting all streaming services...')
+      await Promise.all([
+        transactionProcessorService.start(),
+        pnlEngineService.start(),
+        geyserService.start()
+      ])
+      
+      reply.send({
+        success: true,
+        data: {
+          message: '🎉 Emergency system restart completed successfully!',
+          steps: [
+            '✅ Stopped all streaming services',
+            '✅ Cleared all message queues', 
+            '✅ Restarted all streaming services'
+          ],
+          recommendation: 'System should now process transactions in real-time with fresh queues',
+          timestamp: new Date().toISOString()
+        }
+      })
+      
+    } catch (error) {
+      console.error('❌ Error in emergency system restart:', error)
+      reply.status(500).send({
+        success: false,
+        error: 'Failed to restart system',
+        details: error instanceof Error ? error.message : String(error)
+      })
+    }
+  })
+
+  // =============================================================================
   // SYSTEM A: KOL LEADERBOARD (Live Engine - Real-time KOL tracking)
   // =============================================================================
   

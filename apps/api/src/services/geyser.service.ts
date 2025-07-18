@@ -15,6 +15,13 @@ import {
 import { MessageQueueService } from './message-queue.service.js'
 import { prisma } from '../lib/prisma.js'
 
+// CRITICAL: Define only the most important DEX programs for KOL tracking
+const PRIORITY_DEX_PROGRAMS = {
+  JUPITER: 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
+  RAYDIUM: '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8',
+  PUMP_FUN: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
+} as const
+
 export class GeyserService {
   private client: Client | null = null
   private readonly config: GeyserConfig
@@ -25,9 +32,13 @@ export class GeyserService {
   private readonly streamManager: MultiStreamManager
   private readonly activeStreams = new Map<string, any>()
   private readonly subscribedAccounts = new Set<string>()
-  private phase: 'Phase 1 - Dune Analytics' | 'Phase 2 - Real-time Streaming' = 'Phase 1 - Dune Analytics'
   private messageQueue: MessageQueueService
   private isShuttingDown = false
+  
+  // Performance tracking
+  private transactionCount = 0
+  private relevantTransactionCount = 0
+  private startTime = Date.now()
 
   constructor() {
     this.config = {
@@ -36,10 +47,10 @@ export class GeyserService {
       username: appConfig.geyser.username || '',
       password: appConfig.geyser.password || '',
       chainstackApiKey: appConfig.geyser.chainstackApiKey || '',
-      pingIntervalMs: appConfig.geyser.pingIntervalMs || 10000,
+      pingIntervalMs: appConfig.geyser.pingIntervalMs || 30000, // Reduced ping frequency
       maxAccountsPerStream: appConfig.geyser.maxAccountsPerStream || 50,
-      maxConcurrentStreams: appConfig.geyser.maxConcurrentStreams || 3, // Reduced to be safer with Chainstack limits
-      reconnectMaxAttempts: appConfig.geyser.reconnectMaxAttempts || 5
+      maxConcurrentStreams: 4, // Use 4 streams: 3 for KOL wallets + 1 for monitoring  
+      reconnectMaxAttempts: appConfig.geyser.reconnectMaxAttempts || 3
     }
     
     this.maxReconnectAttempts = this.config.reconnectMaxAttempts
@@ -54,8 +65,7 @@ export class GeyserService {
   }
 
   public async start(): Promise<void> {
-    console.log('🚀 Starting Geyser service for Phase 2 real-time streaming...')
-    this.phase = 'Phase 2 - Real-time Streaming'
+    logger.success('🚀 Starting optimized Geyser service for KOL DEX tracking...', null, 'GEYSER')
     this.isShuttingDown = false
     await this.connect()
   }
@@ -66,105 +76,94 @@ export class GeyserService {
       this.isConnected = true
       this.reconnectAttempts = 0
       this.startPingInterval()
-      await this.setupMultiStreamArchitecture()
+      await this.setupOptimizedStreaming()
     } catch (error) {
-      console.error('❌ Failed to start Geyser service:', error)
+      logger.logCriticalError('Failed to start optimized Geyser service', error, 'GEYSER')
       await this.handleReconnect()
     }
   }
 
   private async establishConnection(): Promise<void> {
     try {
-      console.log('🔗 Connecting to Chainstack Yellowstone gRPC...')
+      logger.info('🔗 Connecting to Chainstack Yellowstone gRPC...', null, 'GEYSER')
       
       if (!this.config.endpoint || !this.config.token) {
         throw new Error('Missing required configuration: endpoint and token')
       }
 
-      // Format endpoint properly for Chainstack
-      
-      console.log(`🔑 Connecting to: ${this.config.endpoint}`)
-      console.log(`🔑 Token configured: ${this.config.token ? 'Yes' : 'No'}`)
-      
-      // Create client with X-Token authentication
       this.client = new Client(this.config.endpoint, this.config.token, {
         'grpc.max_receive_message_length': 64 * 1024 * 1024,
         'grpc.max_send_message_length': 64 * 1024 * 1024,
-        'grpc.keepalive_time_ms': 30000,
-        'grpc.keepalive_timeout_ms': 5000,
+        'grpc.keepalive_time_ms': 60000, // Increased keep-alive
+        'grpc.keepalive_timeout_ms': 10000,
         'grpc.keepalive_permit_without_calls': 1,
         'grpc.http2.max_pings_without_data': 0,
-        'grpc.http2.min_time_between_pings_ms': 10000,
-        'grpc.http2.min_ping_interval_without_data_ms': 5000
+        'grpc.http2.min_time_between_pings_ms': 30000, // Reduced ping frequency
+        'grpc.http2.min_ping_interval_without_data_ms': 15000
       })
-            
       
-      // Test connection with ping
+      // Test connection
       await this.client.ping(1)
-      
-      console.log('✅ Successfully connected to Chainstack Yellowstone gRPC!')
+      logger.success('✅ Connected to Chainstack Yellowstone gRPC!', null, 'GEYSER')
       
     } catch (error) {
-      console.error('❌ Failed to connect to Yellowstone gRPC:', error)
+      logger.logCriticalError('Failed to connect to Yellowstone gRPC', error, 'GEYSER')
       throw error
     }
   }
 
-  private async setupMultiStreamArchitecture(): Promise<void> {
+  private async setupOptimizedStreaming(): Promise<void> {
     try {
-      console.log('🏗️ Setting up multi-stream architecture for KOL wallets...')
+      logger.info('🏗️ Setting up optimized streaming for top 200 KOL wallets...', null, 'GEYSER')
       
-      // Get KOL wallets from database
+      // Get exactly 200 KOL wallets (should be optimized by previous step)
       const kolWallets = await prisma.kolWallet.findMany({
-        select: { address: true },
-        take: this.config.maxConcurrentStreams * this.config.maxAccountsPerStream // Respect stream limits
+        select: { address: true, curatedName: true },
+        take: 200,
+        orderBy: { createdAt: 'desc' } // Most recent = highest performing
       })
       
       if (kolWallets.length === 0) {
-        console.log('⚠️ No KOL wallets found. Run bootstrap first.')
+        logger.warn('⚠️ No KOL wallets found. Run bootstrap first.', null, 'GEYSER')
         return
       }
       
-      console.log(`📊 Found ${kolWallets.length} KOL wallets to track`)
+      logger.success(`📊 Tracking ${kolWallets.length} top KOL wallets`, null, 'GEYSER')
       
-      // Extract and validate wallet addresses
+      // Validate addresses
       const walletAddresses = kolWallets.map(w => w.address)
       const validAddresses = validateWalletAddresses(walletAddresses, 'KOL wallet tracking')
       
       if (validAddresses.length === 0) {
-        console.error('❌ No valid wallet addresses found in database')
+        logger.logCriticalError('No valid wallet addresses found in database', null, 'GEYSER')
         return
       }
       
-      console.log(`🎯 Proceeding with ${validAddresses.length} valid wallet addresses`)
+      // Allocate wallets efficiently across streams
+      this.allocateWalletsOptimally(validAddresses)
       
-      // Allocate wallets across streams
-      this.allocateWalletsToStreams(validAddresses)
-      
-      // Start streaming for each allocation
-      await this.startAllStreams()
+      // Start optimized streaming
+      await this.startOptimizedStreams()
       
     } catch (error) {
-      console.error('❌ Failed to setup multi-stream architecture:', error)
+      logger.logCriticalError('Failed to setup optimized streaming', error, 'GEYSER')
       throw error
     }
   }
 
-  private allocateWalletsToStreams(walletAddresses: string[]): void {
-    const { maxAccountsPerStream, maxConcurrentStreams } = this.config
+  private allocateWalletsOptimally(walletAddresses: string[]): void {
+    const { maxAccountsPerStream } = this.config
+    const maxKolStreams = 3 // Reserve 1 stream for DEX monitoring
     this.streamManager.allocations = []
     
-    console.log(`🔍 Allocating ${walletAddresses.length} validated wallet addresses to streams...`)
+    logger.info(`🔍 Optimally allocating ${walletAddresses.length} wallets...`, null, 'GEYSER')
     
     for (let i = 0; i < walletAddresses.length; i += maxAccountsPerStream) {
       const streamIndex = Math.floor(i / maxAccountsPerStream)
-      const streamId = `stream_${streamIndex + 1}`
-      const walletBatch = walletAddresses.slice(i, i + maxAccountsPerStream)
+      if (streamIndex >= maxKolStreams) break // Don't exceed stream limits
       
-      if (streamIndex >= maxConcurrentStreams) {
-        console.log(`⚠️ Reached max concurrent streams (${maxConcurrentStreams}). Total wallets: ${i}`)
-        break
-      }
+      const streamId = `kol_stream_${streamIndex + 1}`
+      const walletBatch = walletAddresses.slice(i, i + maxAccountsPerStream)
       
       this.streamManager.allocations.push({
         streamId,
@@ -174,7 +173,7 @@ export class GeyserService {
         reconnectAttempts: 0
       })
       
-      console.log(`📋 ${streamId}: ${walletBatch.length} wallets`)
+      logger.info(`📋 ${streamId}: ${walletBatch.length} wallets`, null, 'GEYSER')
     }
     
     this.streamManager.totalWallets = this.streamManager.allocations.reduce(
@@ -182,81 +181,61 @@ export class GeyserService {
     )
     this.streamManager.totalStreams = this.streamManager.allocations.length
     
-    console.log(`📊 Stream allocation complete: ${this.streamManager.totalWallets} wallets across ${this.streamManager.totalStreams} streams`)
+    logger.success(`📊 Optimal allocation: ${this.streamManager.totalWallets} wallets across ${this.streamManager.totalStreams} streams`, null, 'GEYSER')
   }
 
-  private async startAllStreams(): Promise<void> {
+  private async startOptimizedStreams(): Promise<void> {
     if (!this.client) {
       throw new Error('Client not connected')
     }
     
-    console.log('🚀 Starting all gRPC streams...')
+    logger.info('🚀 Starting optimized gRPC streams...', null, 'GEYSER')
     
+    // Start KOL wallet streams with optimized filtering
     for (const allocation of this.streamManager.allocations) {
       try {
-        await this.startWalletStream(allocation)
+        await this.startOptimizedKolStream(allocation)
         allocation.isActive = true
         allocation.reconnectAttempts = 0
-        console.log(`✅ ${allocation.streamId} started successfully`)
+        logger.success(`✅ ${allocation.streamId} started`, null, 'GEYSER')
         
-        // Add delay between stream starts to avoid overwhelming the server
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Brief delay between streams
+        await new Promise(resolve => setTimeout(resolve, 500))
         
       } catch (error) {
-        console.error(`❌ Failed to start ${allocation.streamId}:`, error)
+        logger.logCriticalError(`Failed to start ${allocation.streamId}`, error, 'GEYSER')
         allocation.lastError = error instanceof Error ? error.message : 'Unknown error'
       }
     }
     
-    // Start DEX program monitoring stream only if we have capacity
-    if (this.activeStreams.size < this.config.maxConcurrentStreams) {
-      await this.startDexMonitoringStream()
-    } else {
-      console.log('⚠️ Skipping DEX monitoring stream - at concurrent stream limit')
-    }
+    // Start focused DEX monitoring stream
+    await this.startFocusedDexStream()
     
-    console.log(`🎯 Multi-stream architecture active: ${this.activeStreams.size} streams running`)
+    logger.success(`🎯 Optimized streaming active: ${this.activeStreams.size} streams running`, null, 'GEYSER')
   }
 
-  private async startWalletStream(allocation: StreamAllocation): Promise<void> {
+  private async startOptimizedKolStream(allocation: StreamAllocation): Promise<void> {
     if (!this.client) {
       throw new Error('Client not connected')
     }
     
-    if (this.activeStreams.has(allocation.streamId)) {
-      console.log(`⚠️ Stream ${allocation.streamId} already exists, cleaning up first...`)
-      await this.cleanupStream(allocation.streamId)
-    }
+    logger.info(`🔄 Starting optimized ${allocation.streamId}...`, null, 'GEYSER')
     
-    console.log(`🔄 Starting ${allocation.streamId} for ${allocation.accountCount} wallets...`)
-    
-    // Double-check all addresses are valid before creating stream
+    // Validate all addresses
     const validAddresses = allocation.walletAddresses.filter(addr => isValidSolanaAddress(addr))
     
     if (validAddresses.length === 0) {
       throw new Error(`No valid addresses in ${allocation.streamId}`)
     }
     
-    if (validAddresses.length !== allocation.walletAddresses.length) {
-      console.warn(`⚠️ ${allocation.streamId}: ${allocation.walletAddresses.length - validAddresses.length} invalid addresses filtered out`)
-      allocation.walletAddresses = validAddresses
-      allocation.accountCount = validAddresses.length
-    }
-    
-    // Create subscription request for this batch of wallets
+    // OPTIMIZED: Subscribe only to transactions involving KOL wallets AND DEX programs
     const subscriptionRequest: SubscribeRequest = {
-      accounts: {
-        [allocation.streamId]: {
-          account: validAddresses,
-          owner: [],
-          filters: []
-        }
-      },
+      accounts: {},
       transactions: {
         [allocation.streamId]: {
           accountInclude: validAddresses,
           accountExclude: [],
-          accountRequired: [],
+          accountRequired: Object.values(PRIORITY_DEX_PROGRAMS), // CRITICAL: Only DEX transactions
           vote: false,
           failed: false
         }
@@ -267,65 +246,55 @@ export class GeyserService {
       blocksMeta: {},
       entry: {},
       accountsDataSlice: [],
-      commitment: 1 // CONFIRMED
+      commitment: 1 // CONFIRMED for better reliability
     }
     
-    // Subscribe to the stream
     const stream = await this.client.subscribe()
-    
-    // Send subscription request
     stream.write(subscriptionRequest)
     
-    // Handle stream events
+    // Handle stream events with optimized processing
     stream.on('data', (update: any) => {
-      this.handleStreamUpdate(allocation.streamId, update)
+      this.handleOptimizedUpdate(allocation.streamId, update)
     })
     
     stream.on('error', (error: any) => {
-      console.error(`❌ Stream error on ${allocation.streamId}:`, error)
+      logger.logCriticalError(`Stream error on ${allocation.streamId}`, error, 'GEYSER')
       allocation.isActive = false
-      allocation.lastError = error.message
       
-      // Only attempt reconnect if not shutting down and within limits
-      if (!this.isShuttingDown && allocation.reconnectAttempts < 3) {
+      if (!this.isShuttingDown && allocation.reconnectAttempts < 2) {
         this.handleStreamReconnect(allocation)
-      } else {
-        console.log(`🛑 Max reconnect attempts reached for ${allocation.streamId} or service shutting down`)
       }
     })
     
     stream.on('end', () => {
-      console.log(`🔚 Stream ended: ${allocation.streamId}`)
+      logger.warn(`🔚 Stream ended: ${allocation.streamId}`, null, 'GEYSER')
       allocation.isActive = false
       
-      // Only attempt reconnect if not shutting down
-      if (!this.isShuttingDown && allocation.reconnectAttempts < 3) {
+      if (!this.isShuttingDown && allocation.reconnectAttempts < 2) {
         this.handleStreamReconnect(allocation)
       }
     })
     
-    // Store active stream
     this.activeStreams.set(allocation.streamId, stream)
     allocation.stream = stream
     
-    // Add all wallet addresses to subscribed accounts
+    // Track subscribed accounts
     validAddresses.forEach(addr => this.subscribedAccounts.add(addr))
   }
 
-  private async startDexMonitoringStream(): Promise<void> {
+  private async startFocusedDexStream(): Promise<void> {
     if (!this.client) return
     
-    console.log('🔄 Starting DEX monitoring stream for gem discovery...')
+    logger.info('🔄 Starting focused DEX monitoring for gem discovery...', null, 'GEYSER')
     
-    const dexPrograms = Object.values(DEX_PROGRAMS)
-    
+    // OPTIMIZED: Monitor only priority DEX programs with high-value filtering
     const subscriptionRequest: SubscribeRequest = {
       accounts: {},
       transactions: {
-        'dex_monitor': {
+        'dex_focus': {
           accountInclude: [],
           accountExclude: [],
-          accountRequired: dexPrograms,
+          accountRequired: Object.values(PRIORITY_DEX_PROGRAMS), // Only priority DEXs
           vote: false,
           failed: false
         }
@@ -336,98 +305,97 @@ export class GeyserService {
       blocksMeta: {},
       entry: {},
       accountsDataSlice: [],
-      commitment: 1 // CONFIRMED
+      commitment: 1
     }
     
     const stream = await this.client.subscribe()
-    
     stream.write(subscriptionRequest)
     
     stream.on('data', (update: any) => {
-      this.handleStreamUpdate('dex_monitor', update)
+      this.handleOptimizedUpdate('dex_focus', update)
     })
     
     stream.on('error', (error: any) => {
-      console.error('❌ DEX monitor stream error:', error)
+      logger.logCriticalError('DEX monitoring stream error', error, 'GEYSER')
     })
     
-    this.activeStreams.set('dex_monitor', stream)
+    this.activeStreams.set('dex_focus', stream)
+    logger.success('✅ Focused DEX monitoring started', null, 'GEYSER')
   }
 
-  private async handleStreamUpdate(streamId: string, update: any): Promise<void> {
+  private async handleOptimizedUpdate(streamId: string, update: any): Promise<void> {
     try {
-      if (update.transaction) {
-        // Extract signature from Buffer and convert to Base58
-        const signatureBuffer = update.transaction.transaction.signature
-        const signature = signatureBuffer ? bs58.encode(signatureBuffer) : undefined
-        
-        if (!signature) {
-          logger.warn('Transaction update missing signature, skipping', { streamId }, 'GEYSER')
-          return
-        }
-        
-        // Log the Geyser event
-        logger.logGeyserEvent(streamId, 'transaction', signature)
-        
-        // Process transaction update
-        const txUpdate: GeyserTransactionUpdate = {
-          signature,
-          slot: parseInt(update.transaction.slot) || 0,
-          blockTime: update.transaction.block_time 
-            ? new Date(update.transaction.block_time * 1000) 
-            : new Date(), // Use current time if block_time is missing
-          transaction: update.transaction,
-          accounts: update.transaction.transaction?.message?.account_keys || []
-        }
-        
-        // Push to message queue for processing
-        await this.messageQueue.publishRawTransaction(txUpdate)
-        
-        logger.debug(`Queued transaction ${signature.slice(0, 8)}... from ${streamId}`, {
-          slot: txUpdate.slot,
-          accounts: txUpdate.accounts?.length || 0
-        }, 'GEYSER')
+      if (!update.transaction) return
+      
+      this.transactionCount++
+      
+      // Extract signature efficiently
+      const signatureBuffer = update.transaction.transaction.signature
+      const signature = signatureBuffer ? bs58.encode(signatureBuffer) : null
+      
+      if (!signature) return
+      
+      // CRITICAL: Quick relevance check before processing
+      const accounts = update.transaction.transaction?.message?.account_keys || []
+      const hasKolWallet = accounts.some((key: any) => 
+        this.subscribedAccounts.has(bs58.encode(key))
+      )
+      
+             const hasDexProgram = accounts.some((key: any) => {
+         const address = bs58.encode(key)
+         return Object.values(PRIORITY_DEX_PROGRAMS).includes(address as any)
+       })
+      
+      // Only process transactions involving KOL wallets AND DEX programs
+      if (!hasKolWallet || !hasDexProgram) {
+        return // Skip irrelevant transactions
       }
       
-      if (update.account) {
-        // Process account update - convert pubkey Buffer to Base58
-        const pubkeyBuffer = update.account.account.pubkey
-        const pubkey = pubkeyBuffer ? bs58.encode(pubkeyBuffer) : 'unknown'
-        
-        logger.logGeyserEvent(streamId, 'account')
-        logger.debug(`Account update on ${streamId}: ${pubkey.slice(0, 8)}...`, null, 'GEYSER')
+      this.relevantTransactionCount++
+      
+      // Log only important swaps (rate limited)
+      if (this.relevantTransactionCount % 10 === 0) {
+        logger.logSwapDetected(signature, 'KOL', 'DEX', 'SWAP')
       }
+      
+      // Create optimized transaction update
+      const txUpdate: GeyserTransactionUpdate = {
+        signature,
+        slot: parseInt(update.transaction.slot) || 0,
+        blockTime: update.transaction.block_time 
+          ? new Date(update.transaction.block_time * 1000) 
+          : new Date(),
+        transaction: update.transaction,
+        accounts
+      }
+      
+      // Queue for processing
+      await this.messageQueue.publishRawTransaction(txUpdate)
       
     } catch (error) {
-      logger.error(`Error handling stream update on ${streamId}`, error, 'GEYSER')
+      logger.incrementErrorCount()
+      // Skip error logging for performance unless critical
     }
   }
 
   private async handleStreamReconnect(allocation: StreamAllocation): Promise<void> {
-    if (this.isShuttingDown || allocation.reconnectAttempts >= 3) {
-      return
-    }
+    if (this.isShuttingDown || allocation.reconnectAttempts >= 2) return
     
     allocation.reconnectAttempts++
+    logger.warn(`🔄 Reconnecting ${allocation.streamId} (${allocation.reconnectAttempts}/2)...`, null, 'GEYSER')
     
-    console.log(`🔄 Attempting to reconnect ${allocation.streamId} (attempt ${allocation.reconnectAttempts}/3)...`)
-    
-    // Clean up existing stream first
     await this.cleanupStream(allocation.streamId)
     
-    const delay = 2000 * allocation.reconnectAttempts // Increasing delay
-    
     setTimeout(async () => {
-      try {
-        if (!this.isShuttingDown) {
-          await this.startWalletStream(allocation)
-          console.log(`✅ Successfully reconnected ${allocation.streamId}`)
+      if (!this.isShuttingDown) {
+        try {
+          await this.startOptimizedKolStream(allocation)
+          logger.success(`✅ Reconnected ${allocation.streamId}`, null, 'GEYSER')
+        } catch (error) {
+          logger.logCriticalError(`Failed to reconnect ${allocation.streamId}`, error, 'GEYSER')
         }
-      } catch (error) {
-        console.error(`❌ Failed to reconnect ${allocation.streamId}:`, error)
-        allocation.lastError = error instanceof Error ? error.message : 'Reconnection failed'
       }
-    }, delay)
+    }, 3000 * allocation.reconnectAttempts)
   }
 
   private async cleanupStream(streamId: string): Promise<void> {
@@ -436,13 +404,11 @@ export class GeyserService {
       try {
         stream.destroy()
         this.activeStreams.delete(streamId)
-        console.log(`🔚 Cleaned up stream: ${streamId}`)
       } catch (error) {
-        console.error(`❌ Error cleaning up stream ${streamId}:`, error)
+        // Silent cleanup
       }
     }
     
-    // Update allocation status
     const allocation = this.streamManager.allocations.find(a => a.streamId === streamId)
     if (allocation) {
       allocation.isActive = false
@@ -459,10 +425,10 @@ export class GeyserService {
       try {
         if (this.client && this.isConnected && !this.isShuttingDown) {
           await this.client.ping(1)
-          console.log('📡 Geyser ping successful')
+          // Silent ping - no logging for performance
         }
       } catch (error) {
-        console.error('💥 Geyser ping failed:', error)
+        logger.logCriticalError('Geyser ping failed', error, 'GEYSER')
         this.isConnected = false
         if (!this.isShuttingDown) {
           await this.handleReconnect()
@@ -473,24 +439,21 @@ export class GeyserService {
 
   private async handleReconnect(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts || this.isShuttingDown) {
-      console.log('💀 Max reconnection attempts reached or shutting down. Stopping Geyser service.')
+      logger.logCriticalError('Max reconnection attempts reached', null, 'GEYSER')
       this.stop()
       return
     }
 
     this.reconnectAttempts++
-    const delay = 2000 * Math.pow(2, this.reconnectAttempts - 1)
+    const delay = 3000 * Math.pow(2, this.reconnectAttempts - 1)
     
-    console.log(`🔄 Attempting to reconnect to Geyser (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`)
+    logger.warn(`🔄 Reconnecting to Geyser (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`, null, 'GEYSER')
     
     setTimeout(async () => {
-      try {
-        if (!this.isShuttingDown) {
+      if (!this.isShuttingDown) {
+        try {
           await this.connect()
-        }
-      } catch (error) {
-        console.error('❌ Reconnection failed:', error)
-        if (!this.isShuttingDown) {
+        } catch (error) {
           await this.handleReconnect()
         }
       }
@@ -498,7 +461,7 @@ export class GeyserService {
   }
 
   public stop(): void {
-    console.log('🛑 Stopping Geyser service...')
+    logger.warn('🛑 Stopping Geyser service...', null, 'GEYSER')
     this.isConnected = false
     this.isShuttingDown = true
     
@@ -507,13 +470,11 @@ export class GeyserService {
       this.pingInterval = null
     }
     
-    // Close all active streams
     for (const [streamId, stream] of this.activeStreams) {
       try {
         stream.destroy()
-        console.log(`🔚 Closed stream: ${streamId}`)
       } catch (error) {
-        console.error(`❌ Error closing stream ${streamId}:`, error)
+        // Silent cleanup
       }
     }
     
@@ -523,26 +484,35 @@ export class GeyserService {
     
     this.activeStreams.clear()
     this.subscribedAccounts.clear()
-    this.phase = 'Phase 1 - Dune Analytics'
     
-    // Reset stream manager
     this.streamManager.allocations.forEach(allocation => {
       allocation.isActive = false
       allocation.stream = undefined
       allocation.reconnectAttempts = 0
     })
+    
+    logger.success('✅ Geyser service stopped', null, 'GEYSER')
   }
 
   public getStatus(): GeyserStatus {
-    const activeAllocations = this.streamManager.allocations.filter(a => a.isActive).length
+    const uptime = (Date.now() - this.startTime) / 1000
+    const tps = this.transactionCount / uptime
+    const relevanceRate = this.transactionCount > 0 ? (this.relevantTransactionCount / this.transactionCount * 100) : 0
     
     return {
       connected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts,
       activeStreams: this.activeStreams.size,
       subscribedAccounts: this.subscribedAccounts.size,
-      phase: this.phase,
+      phase: 'Phase 2 - Real-time Streaming',
       endpoint: this.config.endpoint,
+      performance: {
+        totalTransactions: this.transactionCount,
+        relevantTransactions: this.relevantTransactionCount,
+        transactionsPerSecond: parseFloat(tps.toFixed(2)),
+        relevanceRate: parseFloat(relevanceRate.toFixed(2)),
+        uptime: parseFloat(uptime.toFixed(2))
+      },
       streamManager: {
         allocations: this.streamManager.allocations.map(allocation => ({
           streamId: allocation.streamId,
@@ -551,47 +521,36 @@ export class GeyserService {
           isActive: allocation.isActive,
           reconnectAttempts: allocation.reconnectAttempts,
           lastError: allocation.lastError
-          // Exclude 'stream' property to avoid circular references
         })),
         totalWallets: this.streamManager.totalWallets,
-        totalStreams: activeAllocations,
+        totalStreams: this.streamManager.allocations.filter(a => a.isActive).length,
         maxCapacity: this.streamManager.maxCapacity
       }
     }
   }
 
-  public async subscribeToWalletAccounts(walletAddresses: string[]): Promise<void> {
-    console.log('📊 Using multi-stream architecture for wallet tracking')
-    // Wallets are already being tracked via multi-stream setup
-    // This method is kept for compatibility
+  // Simplified legacy methods for compatibility
+  public async subscribeToWalletAccounts(): Promise<void> {
+    // Handled by optimized multi-stream setup
   }
 
-  public async subscribeToWalletTokenAccounts(walletAddresses: string[]): Promise<void> {
-    console.log('💰 Token accounts tracked via transaction monitoring')
-    // Token accounts are tracked via transaction monitoring
-    // This method is kept for compatibility
+  public async subscribeToWalletTokenAccounts(): Promise<void> {
+    // Handled by optimized transaction monitoring
   }
 
   public async trackWallet(address: string): Promise<void> {
-    if (!this.isConnected) {
-      throw new Error('Geyser service not connected')
-    }
-    
     if (!isValidSolanaAddress(address)) {
       throw new Error(`Invalid Solana address: ${address}`)
     }
-    
     this.subscribedAccounts.add(address)
-    console.log(`📊 Now tracking wallet: ${address}`)
   }
 
   public async untrackWallet(address: string): Promise<void> {
     this.subscribedAccounts.delete(address)
-    console.log(`🗑️ Stopped tracking wallet: ${address}`)
   }
 
   public getPhase(): 'Phase 1 - Dune Analytics' | 'Phase 2 - Real-time Streaming' {
-    return this.phase
+    return 'Phase 2 - Real-time Streaming'
   }
 
   public getStreamManager(): MultiStreamManager {
@@ -619,6 +578,12 @@ export class GeyserService {
       reconnectAttempts: number
       lastError?: string
     }>
+    performance: {
+      totalTransactions: number
+      relevantTransactions: number
+      relevanceRate: number
+      transactionsPerSecond: number
+    }
   }> {
     const activeCount = this.streamManager.allocations.filter(a => a.isActive).length
     const inactiveStreams = this.streamManager.allocations
@@ -633,13 +598,23 @@ export class GeyserService {
       lastError: allocation.lastError
     }))
     
+    const uptime = (Date.now() - this.startTime) / 1000
+    const tps = this.transactionCount / uptime
+    const relevanceRate = this.transactionCount > 0 ? (this.relevantTransactionCount / this.transactionCount * 100) : 0
+    
     return {
       totalStreams: this.streamManager.totalStreams,
       activeStreams: activeCount,
       inactiveStreams,
       totalWallets: this.streamManager.totalWallets,
       averageWalletsPerStream: this.streamManager.totalWallets / Math.max(this.streamManager.totalStreams, 1),
-      streamDetails
+      streamDetails,
+      performance: {
+        totalTransactions: this.transactionCount,
+        relevantTransactions: this.relevantTransactionCount,
+        relevanceRate: parseFloat(relevanceRate.toFixed(2)),
+        transactionsPerSecond: parseFloat(tps.toFixed(2))
+      }
     }
   }
 }
